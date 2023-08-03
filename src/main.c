@@ -13,13 +13,6 @@
 // Clients
 #include "ble/sphero_client.h"
 
-/*Note that UUIDs have Least Significant Byte ordering */
-#define SPHERO_SERVICE_UUID 0x21, 0x21, 0x6F, 0x72, 0x65, 0x68, 0x70, 0x53, 0x20, 0x4F, 0x4F, 0x57, 0x01, 0x00, 0x01, 0x00
-#define BT_SPHERO_SERVICE_UUID BT_UUID_DECLARE_128(SPHERO_SERVICE_UUID)
-
-#define SPHERO_CHARACTERISTIC_UUID 0x21, 0x21, 0x6F, 0x72, 0x65, 0x68, 0x70, 0x53, 0x20, 0x4F, 0x4F, 0x57, 0x02, 0x00, 0x01, 0x00
-#define BT_SPHERO_CHARACTERISTIC_UUID BT_UUID_DECLARE_128(SPHERO_CHARACTERISTIC_UUID)
-
 LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 
 static struct bt_conn* default_conn;
@@ -45,70 +38,27 @@ static void discovery_complete(struct bt_gatt_dm* dm, void* context)
 {
     LOG_INF("Discovery complete");
 
-    // Send the wake up command
+    struct bt_sphero_client* sphero = context;
 
-    struct bt_conn* conn = bt_gatt_dm_conn_get(dm);
-
-    if (!conn) {
-        LOG_ERR("Could not get connection");
-        return;
-    }
-
-    const struct bt_gatt_dm_attr* gatt_chrc;
-    gatt_chrc = bt_gatt_dm_char_by_uuid(dm, BT_SPHERO_CHARACTERISTIC_UUID);
-
-    if (!gatt_chrc) {
-        LOG_ERR("Could not find characteristic");
-        return;
-    }
-
-    const struct bt_gatt_dm_attr* gatt_desc;
-    gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, BT_SPHERO_CHARACTERISTIC_UUID);
-
-    if (!gatt_desc) {
-        LOG_ERR("Could not find descriptor");
-        return;
-    }
-
-    struct bt_gatt_chrc* gatt_chrc_val = bt_gatt_dm_attr_chrc_val(gatt_chrc);
-
-    if (!gatt_chrc_val) {
-        LOG_ERR("Could not get characteristic value");
-        return;
-    }
-
-    LOG_INF("Got characteristic");
-
-    struct bt_gatt_write_params write_params;
-
-    LOG_DBG("Value handle: %d", gatt_chrc_val->value_handle);
-    LOG_DBG("DESC handle: %d", gatt_desc->handle);
-
-    unsigned char data[] = { 0x8d, 0xa, 0x13, 0xd, 0x0, 0xd5, 0xd8 };
-
-    write_params.func = on_sent;
-    write_params.handle = gatt_desc->handle;
-    write_params.offset = 0;
-    write_params.data = data;
-    write_params.length = 7;
-
-    LOG_INF("Sending command");
-
-    int err;
-
-    err = bt_gatt_write(conn, &write_params);
-    if (err) {
-        LOG_ERR("Error when sending command");
-    }
+    bt_sphero_handles_assign(dm, sphero);
 
     bt_gatt_dm_data_release(dm);
 
-    err = bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
+    int err = bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
+
     if (err) {
         LOG_ERR("Scanning failed to start (err %d)", err);
     } else {
         LOG_INF("Scanning started");
     }
+
+    // Send wake up message
+
+    unsigned char data[] = { 0x8d, 0xa, 0x13, 0xd, 0x0, 0xd5, 0xd8 };
+
+    LOG_INF("Sending command");
+
+    bt_sphero_client_send(sphero, data, sizeof(data));
 }
 
 static void discovery_service_not_found(struct bt_conn* conn,
@@ -141,17 +91,27 @@ static void gatt_discover(struct bt_conn* conn)
 {
     int err;
 
-    err = bt_gatt_dm_start(conn, BT_SPHERO_SERVICE_UUID, &discovery_cb, NULL);
+    struct bt_sphero_client* sphero_client = bt_conn_ctx_get(&conns_ctx_lib, conn);
+
+    if (!sphero_client) {
+        return;
+    }
+
+    err = bt_gatt_dm_start(conn, BT_SPHERO_SERVICE_UUID, &discovery_cb, sphero_client);
 
     if (err) {
         LOG_ERR("Could not start the discovery procedure, error: %d", err);
     }
+
+    bt_conn_ctx_release(&conns_ctx_lib, (void*)sphero_client);
 }
 
 static void connected(struct bt_conn* conn, uint8_t conn_err)
 {
     char addr[BT_ADDR_LE_STR_LEN];
     int err;
+
+    struct bt_sphero_client_init_param init = {};
 
     bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
@@ -173,30 +133,34 @@ static void connected(struct bt_conn* conn, uint8_t conn_err)
 
     LOG_INF("Connected: %s", addr);
 
-    err = bt_conn_set_security(conn, BT_SECURITY_L1);
+    // Allocate memory for this connection using the connection context library
+
+    struct bt_sphero_client* sphero_client = bt_conn_ctx_alloc(&conns_ctx_lib, conn);
+
+    if (!sphero_client) {
+        LOG_WRN("There is no free memory to allocate the connection context");
+    }
+
+    memset(sphero_client, 0, bt_conn_ctx_block_size_get(&conns_ctx_lib));
+
+    err = bt_sphero_client_init(sphero_client, &init);
+
+    bt_conn_ctx_release(&conns_ctx_lib, (void*)sphero_client);
 
     if (err) {
-        LOG_ERR("Failed to set security (err %d)", err);
-
-        gatt_discover(conn);
+        LOG_ERR("Sphero client initalization failed (err %d)", err);
     } else {
-        LOG_INF("Security level set");
-        gatt_discover(conn);
-        LOG_DBG("Discovering GATT database");
+        LOG_INF("Sphero Clinet module initalized");
     }
+
+    gatt_discover(conn);
 
     // Stop scanning during discovery
 
     err = bt_scan_stop();
-    LOG_DBG("Stopped scanning");
     if ((!err) && (err != -EALREADY)) {
         LOG_ERR("Stop LE scan failed (err %d)", err);
     }
-
-    // err = bt_scan_stop();
-    // if ((!err) && (err != -EALREADY)) {
-    //     LOG_ERR("Stop LE scan failed (err %d)", err);
-    // }
 }
 
 static void disconnected(struct bt_conn* conn, uint8_t reason)
