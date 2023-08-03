@@ -1,7 +1,6 @@
 sample:
-  description: Hello World sample, the simplest Zephyr
-    application
-  name: hello world
+  description: nRF52840 code to control swarm of Sphero Bolts
+  name: Sphero Swarmalators
 common:
   tags: introduction
   integration_platforms:
