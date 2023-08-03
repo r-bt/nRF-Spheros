@@ -1,5 +1,4 @@
-// Kernal
-#include <zephyr/kernel.h>
+#include "scanner.h"
 // Bluetooth
 #include <bluetooth/conn_ctx.h>
 #include <bluetooth/gatt_dm.h>
@@ -8,31 +7,25 @@
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
 // Logging
-#include <zephyr/debug/thread_analyzer.h>
 #include <zephyr/logging/log.h>
 // Clients
-#include "ble/sphero_client.h"
+#include "sphero_client.h"
 
-LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(scanner, LOG_LEVEL_DBG);
 
-static struct bt_conn* default_conn;
+/**
+ * GLOBAL variables
+ */
 
 BT_CONN_CTX_DEF(conns, CONFIG_BT_MAX_CONN, sizeof(struct bt_sphero_client));
 
-static void exchange_func(struct bt_conn* conn, uint8_t err, struct bt_gatt_exchange_params* params)
-{
-    if (!err) {
-        LOG_INF("exchange func: MTU exchange done");
-    } else {
-        LOG_WRN("exchange func: MTU exchange failed (err %d)", err);
-    }
-}
+#define NAME_LEN 30
 
-static void on_sent(struct bt_conn* conn, uint8_t err,
-    struct bt_gatt_write_params* params)
-{
-    LOG_DBG("Sent had error code: %d", err);
-}
+static struct bt_conn* default_conn;
+
+/**
+ * Service discovery
+ */
 
 static void discovery_complete(struct bt_gatt_dm* dm, void* context)
 {
@@ -105,6 +98,10 @@ static void gatt_discover(struct bt_conn* conn)
 
     bt_conn_ctx_release(&conns_ctx_lib, (void*)sphero_client);
 }
+
+/*
+ * Connected code
+ */
 
 static void connected(struct bt_conn* conn, uint8_t conn_err)
 {
@@ -206,22 +203,9 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
     .security_changed = security_changed,
 };
 
-static void scan_filter_match(struct bt_scan_device_info* device_info, struct bt_scan_filter_match* filter_match, bool connectable)
-{
-    char addr[BT_ADDR_LE_STR_LEN];
-
-    bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
-
-    LOG_INF("Filters matched. Address: %s connectable: %d",
-        addr, connectable);
-}
-
-static void scan_connecting_error(struct bt_scan_device_info* device_info)
-{
-    LOG_ERR("Connecting failed");
-}
-
-#define NAME_LEN 30
+/*
+ * SCANNING CODE
+ */
 
 static bool data_cb(struct bt_data* data, void* user_data)
 {
@@ -240,6 +224,21 @@ static bool data_cb(struct bt_data* data, void* user_data)
     }
 }
 
+static void scan_connecting_error(struct bt_scan_device_info* device_info)
+{
+    LOG_ERR("Connecting failed");
+}
+
+static void scan_filter_match(struct bt_scan_device_info* device_info, struct bt_scan_filter_match* filter_match, bool connectable)
+{
+    char addr[BT_ADDR_LE_STR_LEN];
+
+    bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
+
+    LOG_INF("Filters matched. Address: %s connectable: %d",
+        addr, connectable);
+}
+
 static void scan_connecting(struct bt_scan_device_info* device_info, struct bt_conn* conn)
 {
     char name[NAME_LEN];
@@ -255,7 +254,7 @@ static void scan_connecting(struct bt_scan_device_info* device_info, struct bt_c
 
 BT_SCAN_CB_INIT(scan_cb, scan_filter_match, NULL, scan_connecting_error, scan_connecting);
 
-static int scan_init(void)
+static int scanner_scan_init(void)
 {
     int err;
     struct bt_scan_init_param scan_init = {
@@ -305,79 +304,33 @@ static int scan_init(void)
     return err;
 }
 
-static void auth_cancel(struct bt_conn* conn)
-{
-    char addr[BT_ADDR_LE_STR_LEN];
-
-    bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-    LOG_INF("Pairing cancelled: %s", addr);
-}
-
-static void pairing_complete(struct bt_conn* conn, bool bonded)
-{
-    char addr[BT_ADDR_LE_STR_LEN];
-
-    bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-    LOG_INF("Pairing complete: %s, bonded: %d", addr, bonded);
-}
-
-static void pairing_failed(struct bt_conn* conn, enum bt_security_err reason)
-{
-    char addr[BT_ADDR_LE_STR_LEN];
-
-    bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-    LOG_INF("Pairing failed conn: %s, reason %d", addr, reason);
-}
-
-static struct bt_conn_auth_cb conn_auth_callbacks = {
-    .cancel = auth_cancel,
-};
-
-static struct bt_conn_auth_info_cb conn_auth_info_callbacks = {
-    .pairing_complete = pairing_complete,
-    .pairing_failed = pairing_failed,
-};
-
-int main()
+int scanner_init(void)
 {
     int err;
-
-    err = bt_conn_auth_cb_register(&conn_auth_callbacks);
-    if (err) {
-        LOG_ERR("Failed to register authorization callback (err %d)", err);
-        return 0;
-    }
-
-    err = bt_conn_auth_info_cb_register(&conn_auth_info_callbacks);
-    if (err) {
-        LOG_ERR("Failed to register authorization info callback (err %d)", err);
-        return 0;
-    }
 
     err = bt_enable(NULL);
     if (err) {
         LOG_ERR("Bluetooth init failed (err %d)", err);
-        return 0;
+        return err;
     }
 
-    LOG_INF("Bluetooth initialized");
+    err = scanner_scan_init();
 
-    err = scan_init();
     if (err != 0) {
         LOG_ERR("Scan module failed to initialize (err %d)", err);
-        return 0;
+        return err;
     }
 
-    err = bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
+    return 0;
+}
+
+int scanner_start(void)
+{
+    int err = bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
     if (err) {
         LOG_ERR("Scanning failed to start (err %d)", err);
-        return 0;
+        return err;
     }
 
-    LOG_INF("Scanning successfully started");
-
-    return 1;
+    return 0;
 }

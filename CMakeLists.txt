@@ -7,7 +7,8 @@ project(hello_world)
 
 include_directories(${CMAKE_SOURCE_DIR}/ble)
 
+FILE(GLOB_RECURSE app_sources src/*.c src/*.cpp)
+
 target_sources(app PRIVATE 
-    src/main.c
-    src/ble/sphero_client.c
+    ${app_sources}
 )

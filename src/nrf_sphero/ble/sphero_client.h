@@ -24,16 +24,14 @@ extern "C" {
 /**
  * @brief Handles on the connected sphero that are needed to interact
  * */
-
 struct bt_sphero_client_handles {
     /** Handle of the sphero characteristic which packets should be written to*/
-    uint16_t packets
+    uint16_t packets;
 };
 
 struct bt_sphero_client;
 
 /** @brief Sphero Client callback strucutre */
-
 struct bt_sphero_client_cb {
     /** @brief Data received callback
      *
@@ -69,7 +67,6 @@ struct bt_sphero_client_cb {
 /**
  * @brief Sphero Client Structure
  */
-
 struct bt_sphero_client {
     struct bt_conn* conn;
 
@@ -106,7 +103,6 @@ struct bt_sphero_client_init_param {
  * @retval 0 If successful
  *         Otherwise, a negative error code is returned
  */
-
 int bt_sphero_client_init(struct bt_sphero_client* sphero, const struct bt_sphero_client_init_param* init_param);
 
 /** @brief Send data to the Sphero
@@ -122,7 +118,6 @@ int bt_sphero_client_init(struct bt_sphero_client* sphero, const struct bt_spher
  * @retval 0 If successful
  *         Otherwise, a negative error code is returned
  */
-
 int bt_sphero_client_send(struct bt_sphero_client* sphero, const uint8_t* data, uint16_t len);
 
 /** @brief Assign handles to Sphero Client instance
@@ -150,7 +145,6 @@ int bt_sphero_handles_assign(struct bt_gatt_dm* dm, struct bt_sphero_client* sph
  * @retval 0 If successful
  *         Otherwise, a negative error code is returned
  */
-
 int bt_sphero_subscribe(struct bt_sphero_client* sphero);
 
 #ifdef __cplusplus
