@@ -23,6 +23,8 @@ BT_CONN_CTX_DEF(conns, CONFIG_BT_MAX_CONN, sizeof(struct bt_sphero_client));
 
 static struct bt_conn* default_conn;
 
+uint64_t last_sphero_found;
+
 /**
  * Service discovery
  */
@@ -43,15 +45,16 @@ static void discovery_complete(struct bt_gatt_dm* dm, void* context)
         LOG_ERR("Scanning failed to start (err %d)", err);
     } else {
         LOG_INF("Scanning started");
+        last_sphero_found = k_uptime_get();
     }
 
-    // Send wake up message
+    // // Send wake up message
 
-    unsigned char data[] = { 0x8d, 0xa, 0x13, 0xd, 0x0, 0xd5, 0xd8 };
+    // unsigned char data[] = { 0x8d, 0xa, 0x13, 0xd, 0x0, 0xd5, 0xd8 };
 
-    LOG_INF("Sending command");
+    // LOG_INF("Sending command");
 
-    bt_sphero_client_send(sphero, data, sizeof(data));
+    // bt_sphero_client_send(sphero, data, sizeof(data));
 }
 
 static void discovery_service_not_found(struct bt_conn* conn,
@@ -266,7 +269,7 @@ static int scanner_scan_init(void)
     bt_scan_init(&scan_init);
     bt_scan_cb_register(&scan_cb);
 
-    int sphero_names_len = 15;
+    int sphero_names_len = 3;
 
     char* sphero_names[] = {
         "SB-1B35",
@@ -324,8 +327,9 @@ int scanner_init(void)
     return 0;
 }
 
-int scanner_start(void)
+int scanner_start()
 {
+    last_sphero_found = k_uptime_get();
     int err = bt_scan_start(BT_SCAN_TYPE_SCAN_ACTIVE);
     if (err) {
         LOG_ERR("Scanning failed to start (err %d)", err);
@@ -333,4 +337,29 @@ int scanner_start(void)
     }
 
     return 0;
+}
+
+int scanner_stop()
+{
+    int err = bt_scan_stop();
+    if (err) {
+        LOG_ERR("Stop LE scan failed (err %d)", err);
+        return err;
+    }
+
+    return 0;
+}
+
+unsigned int scanner_get_sphero_count()
+{
+    return bt_conn_ctx_count(&conns_ctx_lib);
+}
+
+struct bt_sphero_client* scanner_get_sphero(unsigned int id)
+{
+    const struct bt_conn_ctx* ctx = bt_conn_ctx_get_by_id(&conns_ctx_lib, id);
+
+    struct bt_sphero_client* sphero = ctx->data;
+
+    return sphero;
 }
