@@ -7,10 +7,7 @@
 
 class Commands {
 protected:
-    static const Packet encode(PacketManager& manager, uint8_t did, uint8_t cid, uint8_t tid, std::vector<unsigned char> data = {})
-    {
-        return manager.new_packet(did, cid, tid, data);
-    }
+    static const Packet encode(PacketManager& manager, uint8_t did, uint8_t cid, uint8_t tid, std::vector<unsigned char> data = {});
 };
 
 #endif // COMMANDS_H

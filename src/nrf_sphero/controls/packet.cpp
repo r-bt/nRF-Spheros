@@ -30,6 +30,18 @@ std::vector<unsigned char> Packet::build() const
 {
     std::vector<unsigned char> packet = { static_cast<unsigned char>(flags) };
 
+    LOG_DBG("Flags: %d", static_cast<uint8_t>(flags));
+    LOG_DBG("Did: %d", did);
+    LOG_DBG("Cid: %d", cid);
+    LOG_DBG("Seq: %d", seq);
+    LOG_DBG("Tid: %d", tid);
+    LOG_DBG("Sid: %d", sid);
+
+    // Print data as hex
+    for (int i = 0; i < data.size(); i++) {
+        LOG_INF("%x", data.at(i));
+    }
+
     if ((flags & PacketFlags::has_target_id) != PacketFlags::none) {
         packet.push_back(tid);
     }

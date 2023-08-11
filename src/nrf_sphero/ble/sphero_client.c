@@ -13,6 +13,35 @@ enum {
     SPHERO_C_WRITE_PENDING,
 };
 
+static uint8_t on_received(struct bt_conn* conn, struct bt_gatt_subscribe_params* params, const void* data, uint16_t length)
+{
+    struct bt_sphero_client* sphero_c;
+
+    // Retrieve Sphero Client module context
+    sphero_c = CONTAINER_OF(params, struct bt_sphero_client, sphero_packet_subscribe_params);
+
+    // if (!data) {
+    //     LOG_ERR("[UNSUBSCRIBED]");
+
+    //     params->value_handle = 0;
+    //     atomic_clear_bit(&sphero_c->state, SPHERO_C_NOTIF_ENABLED);
+
+    //     if (sphero_c->cb.unsubscribed) {
+    //         sphero_c->cb.unsubscribed(sphero_c);
+    //     }
+
+    //     return BT_GATT_ITER_STOP;
+    // }
+
+    LOG_DBG("[NOTIFICATION] data %p length %u", data, length);
+
+    if (sphero_c->cb.received) {
+        return sphero_c->cb.received(sphero_c, data, length, sphero_c->cb.recieved_context);
+    }
+
+    return BT_GATT_ITER_CONTINUE;
+}
+
 static void on_sent(struct bt_conn* conn, uint8_t err, struct bt_gatt_write_params* params)
 {
     struct bt_sphero_client* sphero_c;
@@ -106,7 +135,49 @@ int bt_sphero_handles_assign(struct bt_gatt_dm* dm, struct bt_sphero_client* sph
     LOG_DBG("Found handle for Sphero Packets characteristic");
     sphero_c->handles.packets = gatt_desc->handle;
 
+    /* Sphero Packets CCC */
+    gatt_desc = bt_gatt_dm_desc_by_uuid(dm, gatt_chrc, BT_UUID_GATT_CCC);
+    if (!gatt_desc) {
+        LOG_ERR("Missing Sphero Packet CCC descriptor in characteristic");
+        return -EINVAL;
+    }
+
+    LOG_DBG("Found handle for Sphero Packets CCC descriptor");
+    sphero_c->handles.packets_ccc = gatt_desc->handle;
+
     /* Assign connection instance */
     sphero_c->conn = bt_gatt_dm_conn_get(dm);
     return 0;
+}
+
+int bt_sphero_subscribe(struct bt_sphero_client* sphero_c, bt_sphero_received_cb_t* received_cb, void* context)
+{
+    int err;
+
+    if (atomic_test_and_set_bit(&sphero_c->state, SPHERO_C_NOTIF_ENABLED)) {
+        return -EALREADY;
+    }
+
+    // Set the received callback
+
+    sphero_c->cb.received = received_cb;
+    sphero_c->cb.recieved_context = context;
+
+    // Setup the subscribe params
+
+    sphero_c->sphero_packet_subscribe_params.notify = on_received;
+    sphero_c->sphero_packet_subscribe_params.value = BT_GATT_CCC_NOTIFY;
+    sphero_c->sphero_packet_subscribe_params.value_handle = sphero_c->handles.packets;
+    sphero_c->sphero_packet_subscribe_params.ccc_handle = sphero_c->handles.packets_ccc;
+    atomic_set_bit(sphero_c->sphero_packet_subscribe_params.flags, BT_GATT_SUBSCRIBE_FLAG_VOLATILE);
+
+    err = bt_gatt_subscribe(sphero_c->conn, &sphero_c->sphero_packet_subscribe_params);
+    if (err) {
+        LOG_ERR("Subscribe failed (err %d)", err);
+        atomic_clear_bit(&sphero_c->state, SPHERO_C_NOTIF_ENABLED);
+    } else {
+        LOG_DBG("[SUBSCRIBED]");
+    }
+
+    return err;
 }

@@ -25,11 +25,16 @@ extern "C" {
  * @brief Handles on the connected sphero that are needed to interact
  * */
 struct bt_sphero_client_handles {
-    /** Handle of the sphero characteristic which packets should be written to*/
+    /** Handle of Sphero Packets characteristic (both RX and TX) */
     uint16_t packets;
+
+    /** Handle of the CCC descriptor of the Sperho Packets characteristic*/
+    uint16_t packets_ccc;
 };
 
 struct bt_sphero_client;
+
+typedef uint8_t(bt_sphero_received_cb_t)(struct bt_sphero_client* sphero, const uint8_t* data, uint16_t len, void* context);
 
 /** @brief Sphero Client callback strucutre */
 struct bt_sphero_client_cb {
@@ -44,7 +49,12 @@ struct bt_sphero_client_cb {
      * @retval BT_GATT_ITER_CONTINUE To keep notifications enabled
      * @retval BT_GATT_ITER_STOP To disable notifications
      */
-    uint8_t (*received)(struct bt_sphero_client* sphero, const uint8_t* data, uint16_t len);
+    bt_sphero_received_cb_t* received;
+
+    /**
+     * @brief Context for the recieved callback
+     */
+    void* recieved_context;
 
     /** @brief Data sent callback
      *
@@ -141,11 +151,13 @@ int bt_sphero_handles_assign(struct bt_gatt_dm* dm, struct bt_sphero_client* sph
  * by writing to the CCC descriptor of the Packet Characteristic
  *
  * @param[in, out] sphero Sphero Client instance
+ * @param[in] received_cb Callback to be called when data is received
+ * @param[in] context User context
  *
  * @retval 0 If successful
  *         Otherwise, a negative error code is returned
  */
-int bt_sphero_subscribe(struct bt_sphero_client* sphero);
+int bt_sphero_subscribe(struct bt_sphero_client* sphero, bt_sphero_received_cb_t* received_cb, void* context);
 
 #ifdef __cplusplus
 }

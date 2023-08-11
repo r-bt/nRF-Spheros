@@ -1,5 +1,6 @@
 #include "nrf_sphero/sphero.hpp"
 #include "nrf_sphero/sphero_scanner.hpp"
+#include "nrf_sphero/utils/color.hpp"
 #include <zephyr/kernel.h>
 // Logging
 #include <zephyr/logging/log.h>
@@ -42,9 +43,11 @@ int main(void)
     // Print amount of found spheros
     LOG_INF("%d spheros in std::vector", spheros.size());
 
-    for (auto sphero : spheros) {
-        sphero->wake();
-    }
+    Color red(255, 0, 0);
+
+    // for (auto sphero : spheros) {
+    //     sphero->set_matrix_fill(0, 0, 7, 7, red);
+    // }
 
     LOG_INF("Done");
 
