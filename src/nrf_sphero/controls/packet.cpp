@@ -46,8 +46,8 @@ std::vector<unsigned char> Packet::build() const
         packet.push_back(static_cast<unsigned char>(err));
     }
 
-    if (data != nullptr) {
-        packet.insert(packet.end(), data->begin(), data->end());
+    if (data.size() > 0) {
+        packet.insert(packet.end(), data.begin(), data.end());
     }
 
     packet.push_back(packet_chk(packet));
@@ -76,7 +76,6 @@ std::vector<unsigned char> Packet::build() const
     }
 
     escaped_packet.push_back(static_cast<unsigned char>(PacketEncoding::end));
-    LOG_DBG("Built packet!");
 
     return escaped_packet;
 };

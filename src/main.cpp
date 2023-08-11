@@ -36,13 +36,17 @@ int main(void)
 
     auto spheros = scanner.get_spheros();
 
-    LOG_INF("Got spheros!");
+    // Print number of spheros
+    LOG_INF("Found %d spheros", scanner.get_num_spheros());
 
-    LOG_INF("Waking up the first sphero!");
+    // Print amount of found spheros
+    LOG_INF("%d spheros in std::vector", spheros.size());
 
     for (auto sphero : spheros) {
-        sphero.wake();
+        sphero->wake();
     }
+
+    LOG_INF("Done");
 
     return 0;
 }

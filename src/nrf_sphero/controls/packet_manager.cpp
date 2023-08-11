@@ -10,7 +10,7 @@ PacketManager::PacketManager()
     seq = 0;
 }
 
-Packet PacketManager::new_packet(uint8_t did, uint8_t cid, uint8_t tid, std::vector<unsigned char>* data)
+Packet PacketManager::new_packet(uint8_t did, uint8_t cid, uint8_t tid, std::vector<unsigned char> data)
 {
     Packet packet;
 

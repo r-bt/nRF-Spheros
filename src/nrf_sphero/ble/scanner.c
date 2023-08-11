@@ -269,7 +269,7 @@ static int scanner_scan_init(void)
     bt_scan_init(&scan_init);
     bt_scan_cb_register(&scan_cb);
 
-    int sphero_names_len = 3;
+    int sphero_names_len = 5;
 
     char* sphero_names[] = {
         "SB-1B35",
@@ -355,11 +355,16 @@ unsigned int scanner_get_sphero_count()
     return bt_conn_ctx_count(&conns_ctx_lib);
 }
 
-struct bt_sphero_client* scanner_get_sphero(unsigned int id)
+struct bt_sphero_client* scanner_get_sphero(uint8_t id)
 {
     const struct bt_conn_ctx* ctx = bt_conn_ctx_get_by_id(&conns_ctx_lib, id);
 
     struct bt_sphero_client* sphero = ctx->data;
 
     return sphero;
+}
+
+void scanner_release_sphero(struct bt_sphero_client* sphero)
+{
+    bt_conn_ctx_release(&conns_ctx_lib, sphero);
 }

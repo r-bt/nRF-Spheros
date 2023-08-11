@@ -9,12 +9,13 @@
 
 class Sphero {
 private:
-    bt_sphero_client* sphero_client;
+    uint8_t sphero_id;
 
 public:
     PacketManager* packet_manager;
 
-    Sphero(bt_sphero_client* client);
+    Sphero(uint8_t id);
+    // Sphero(bt_sphero_client* client);
     ~Sphero();
 
     /**
@@ -25,9 +26,16 @@ public:
     void execute(const Packet& packet);
 
     /**
-     * @brief Wake up the Sphero
+     * @brief Wake up Sphero from soft sleep. Nothing to do if awake.
      */
     void wake();
+
+    /**
+     * @brief Sets flags for the locator module.
+     *
+     * @param locator_flags The flags to set
+     */
+    void set_locator_flags(bool locator_flags);
 };
 
 #endif // SPHERO_H

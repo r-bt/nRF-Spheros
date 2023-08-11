@@ -44,7 +44,14 @@ unsigned int scanner_get_sphero_count();
  *
  * @return sphero_client The sphero client
  */
-struct bt_sphero_client* scanner_get_sphero(unsigned int id);
+struct bt_sphero_client* scanner_get_sphero(uint8_t id);
+
+/**
+ * @brief Release sphero
+ *
+ * @param[in] sphero_client The sphero client to release
+ */
+void scanner_release_sphero(struct bt_sphero_client* sphero_client);
 
 #ifdef __cplusplus
 }

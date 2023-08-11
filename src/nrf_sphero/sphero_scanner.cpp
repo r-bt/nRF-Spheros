@@ -2,6 +2,7 @@
 #include "ble/scanner.h"
 #include "sphero.hpp"
 #include <cstdint>
+#include <memory>
 #include <vector>
 #include <zephyr/kernel.h>
 
@@ -46,15 +47,18 @@ bool SpheroScanner::found_all_spheros(uint64_t timeout)
     return false;
 }
 
-std::vector<Sphero> SpheroScanner::get_spheros()
+unsigned int SpheroScanner::get_num_spheros()
+{
+    return scanner_get_sphero_count();
+}
+
+std::vector<std::shared_ptr<Sphero>> SpheroScanner::get_spheros()
 {
     unsigned int num_spheros = scanner_get_sphero_count();
 
-    std::vector<Sphero> spheros = {};
+    std::vector<std::shared_ptr<Sphero>> spheros;
     for (size_t i = 0; i < num_spheros; i++) {
-        bt_sphero_client* sphero_client = scanner_get_sphero(i);
-
-        Sphero sphero(sphero_client);
+        std::shared_ptr<Sphero> sphero = std::make_shared<Sphero>(i);
 
         spheros.push_back(sphero);
     }

@@ -3,6 +3,7 @@
 
 #include "sphero.hpp"
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 class SpheroScanner {
@@ -37,11 +38,18 @@ public:
      */
     bool found_all_spheros(uint64_t timeout = 5000);
 
+    /**
+     * @brief Get the number of spheros found
+     *
+     * @returns The number of spheros found
+     */
+    unsigned int get_num_spheros();
+
     /** @brief Get all spheros
      *
      * @returns spheros The connected spheros
      */
-    std::vector<Sphero> get_spheros();
+    std::vector<std::shared_ptr<Sphero>> get_spheros();
 };
 
 #endif // SPHERO_SCANNER

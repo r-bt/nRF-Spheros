@@ -83,7 +83,7 @@ public:
     /* Source ID - Address of the source, expressed as a port ID (upper nibble) and a node id (lower nibble)*/
     uint8_t sid;
     /* Data - Zero or more bytes of message data */
-    std::vector<unsigned char>* data;
+    std::vector<unsigned char> data;
     PacketError err;
 
     std::vector<unsigned char> build() const;
