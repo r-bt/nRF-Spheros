@@ -20,21 +20,6 @@ static uint8_t on_received(struct bt_conn* conn, struct bt_gatt_subscribe_params
     // Retrieve Sphero Client module context
     sphero_c = CONTAINER_OF(params, struct bt_sphero_client, sphero_packet_subscribe_params);
 
-    // if (!data) {
-    //     LOG_ERR("[UNSUBSCRIBED]");
-
-    //     params->value_handle = 0;
-    //     atomic_clear_bit(&sphero_c->state, SPHERO_C_NOTIF_ENABLED);
-
-    //     if (sphero_c->cb.unsubscribed) {
-    //         sphero_c->cb.unsubscribed(sphero_c);
-    //     }
-
-    //     return BT_GATT_ITER_STOP;
-    // }
-
-    LOG_DBG("[NOTIFICATION] data %p length %u", data, length);
-
     if (sphero_c->cb.received) {
         return sphero_c->cb.received(sphero_c, data, length, sphero_c->cb.recieved_context);
     }

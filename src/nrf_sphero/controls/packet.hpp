@@ -3,6 +3,7 @@
 #define PACKET_H
 
 #include <cstdint>
+#include <stdexcept>
 #include <vector>
 
 uint8_t packet_chk(std::vector<unsigned char> payload);
@@ -69,7 +70,11 @@ enum class PacketError : unsigned char {
 */
 class Packet {
 private:
+    static std::vector<unsigned char> unescape_data(std::vector<unsigned char> data);
+
 public:
+    /* Packet Constructor */
+    Packet(PacketFlags flags, uint8_t did, uint8_t cid, uint8_t seq, uint8_t tid, uint8_t sid, PacketError err, std::vector<unsigned char> data);
     /* Packet flags - Bit-flags that modify the behaviour of the packet*/
     PacketFlags flags;
     /* Device ID - Command group of the command being sent */
@@ -87,6 +92,15 @@ public:
     PacketError err;
 
     std::vector<unsigned char> build() const;
+
+    /**
+     * Parses the response data and returns a Packet.
+     *
+     * @param data The data to be parsed.
+     * @throws std::runtime_error If the data is empty or other parsing errors occur.
+     * @return The parsed Packet.
+     */
+    static const Packet parse_response(std::vector<unsigned char> data) noexcept(false);
 };
 
 #endif // PACKET_H

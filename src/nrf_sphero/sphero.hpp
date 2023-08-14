@@ -3,6 +3,7 @@
 
 #include "ble/sphero_client.h"
 #include "controls/packet.hpp"
+#include "controls/packet_collector.hpp"
 #include "controls/packet_manager.hpp"
 #include "utils/color.hpp"
 
@@ -15,20 +16,27 @@ private:
 
     /**
      * @brief Subscribe to notifications from the Sphero
-    */
+     */
     void subscribe();
 
     /**
-     * @brief Handle a packet received from the Sphero
-    */
-    uint8_t handle_packet(struct bt_sphero_client* sphero, const uint8_t* data, uint16_t len);
+     * @brief Static wrapper for the handle_recevied_data function
+     *
+     * @note This is required since the callback function must be static to be passed to the C API
+     */
+    static bt_sphero_received_cb_t received_cb_wrapper;
 
     /**
-     * @brief Static wrapper for the handle_packet function
-     * 
-     * @note This is required since the callback function must be static
-    */
-    static bt_sphero_received_cb_t received_cb_wrapper;
+     * @brief Tracks recieved packets and calls the callback function when a complete packet is received
+     */
+    PacketCollector* packet_collector;
+
+    /**
+     * @brief Handle a packet
+     *
+     * @note This function is called when a complete packet is received
+     */
+    void handle_packet(Packet packet);
 
 public:
     PacketManager* packet_manager;
@@ -65,7 +73,7 @@ public:
      * @param y2 The y coordinate of the second corner
      * @param color The color to set matrix to
      */
-    void set_matrix_fill(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, Color color);
+    void set_matrix_fill(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, RGBColor color);
 };
 
 #endif // SPHERO_H

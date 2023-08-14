@@ -150,7 +150,7 @@ static void connected(struct bt_conn* conn, uint8_t conn_err)
     if (err) {
         LOG_ERR("Sphero client initalization failed (err %d)", err);
     } else {
-        LOG_INF("Sphero Clinet module initalized");
+        LOG_INF("Sphero Client module initalized");
     }
 
     gatt_discover(conn);
@@ -269,7 +269,7 @@ static int scanner_scan_init(void)
     bt_scan_init(&scan_init);
     bt_scan_cb_register(&scan_cb);
 
-    int sphero_names_len = 1;
+    int sphero_names_len = 15;
 
     char* sphero_names[] = {
         "SB-1B35",

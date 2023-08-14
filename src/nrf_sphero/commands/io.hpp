@@ -18,7 +18,7 @@ public:
      * @param[in] color The color to set matrix to
      * @param[in] tid The target id for the packet (optional)
      */
-    static const void fill_led_matrix(Sphero& sphero, uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, Color color, uint8_t tid = 0);
+    static const void fill_led_matrix(Sphero& sphero, uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, RGBColor color, uint8_t tid = 0);
 };
 
 #endif // IO_H
