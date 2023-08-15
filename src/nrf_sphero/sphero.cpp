@@ -5,6 +5,7 @@
 #include "controls/processors.hpp"
 #include "utils/color.hpp"
 #include <functional>
+#include <unordered_map>
 #include <vector>
 #include <zephyr/logging/log.h>
 // COMMANDS
@@ -28,16 +29,8 @@ void Sphero::handle_packet(Packet packet)
 {
     LOG_DBG("Handling packet, has error code %d", static_cast<uint8_t>(packet.err));
 
-    // auto data = packet.build();
-
-    // for (size_t i = 0; i < data.size(); i++) {
-    //     LOG_DBG("%x", data.at(i));
-    // }
-
-    // Print data as hex
-    // for (size_t i = 0; i < packet.data.size(); i++) {
-    //     LOG_INF("%x", packet.data.at(i));
-    // }
+    // TODO: Implement error handling
+    // TODO: Implement packet handling
 }
 
 void Sphero::subscribe()
@@ -69,7 +62,9 @@ Sphero::Sphero(uint8_t id)
 
     wake();
 
-    // set_locator_flags(false);
+    k_msleep(1000);
+
+    turn_off_all_leds();
 };
 
 Sphero::~Sphero()
@@ -113,4 +108,45 @@ void Sphero::set_locator_flags(bool locator_flags)
 void Sphero::set_matrix_fill(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, RGBColor color)
 {
     IO::fill_led_matrix(*this, x1, y1, x2, y2, color, static_cast<uint8_t>(Processors::SECONDARY));
+}
+
+void Sphero::set_matrix_color(RGBColor color)
+{
+    IO::set_led_matrix_color(*this, color, static_cast<uint8_t>(Processors::SECONDARY));
+}
+
+void Sphero::set_all_leds_with_8_bit_mask(uint8_t mask, std::vector<uint8_t> led_values)
+{
+    IO::set_all_leds_with_8_bit_mask(*this, mask, led_values, static_cast<uint8_t>(Processors::PRIMARY));
+}
+
+void Sphero::set_all_leds_with_map(std::unordered_map<Sphero::LEDs, uint8_t> mapping)
+{
+    uint8_t mask = 0;
+
+    std::vector<uint8_t> led_values = {};
+
+    for (int i = 0; i < static_cast<int>(Sphero::LEDs::LAST); ++i) {
+        Sphero::LEDs led = static_cast<Sphero::LEDs>(i);
+        if (mapping.find(led) != mapping.end()) {
+            mask |= 1 << static_cast<uint8_t>(led);
+            led_values.push_back(mapping[led]);
+        }
+    }
+
+    if (mask != 0) {
+        set_all_leds_with_8_bit_mask(mask, led_values);
+    }
+}
+
+void Sphero::turn_off_all_leds()
+{
+    std::unordered_map<Sphero::LEDs, uint8_t> mapping;
+
+    for (int i = 0; i < static_cast<int>(Sphero::LEDs::LAST); ++i) {
+        mapping[static_cast<Sphero::LEDs>(i)] = 0;
+    }
+
+    set_all_leds_with_map(mapping);
+    set_matrix_color(RGBColor(0, 0, 0));
 }

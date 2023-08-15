@@ -9,6 +9,14 @@
 
 #define PACKET_PROCESSING_QUEUE_PRIORITY 4
 
+/**
+ * This class specifically implements a Sphero BOLT
+ * (as opposed to a generic Sphero which is then expanded on like in spherov2)
+ *
+ * However, some efforts have been made to make it simple in the future to add support for other Sphero models
+ * (e.g. Sphero Mini, Sphero SPRK+, etc.)
+ * */
+
 class Sphero {
 private:
     /** @brief The id of the Sphero Context */
@@ -42,8 +50,21 @@ public:
     PacketManager* packet_manager;
 
     Sphero(uint8_t id);
-    // Sphero(bt_sphero_client* client);
+
     ~Sphero();
+
+    /**
+     * @brief Available LEDs on Sphero Bolt
+     */
+    enum class LEDs : uint8_t {
+        FRONT_RED,
+        FRONT_GREEN,
+        FRONT_BLUE,
+        BACK_RED,
+        BACK_GREEN,
+        BACK_BLUE,
+        LAST
+    };
 
     /**
      * @brief Execute a command
@@ -74,6 +95,34 @@ public:
      * @param color The color to set matrix to
      */
     void set_matrix_fill(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, RGBColor color);
+
+    /**
+     * @brief Sets Sphero BOLT's LED matrix to specified color
+     *
+     * @param color The color to set matrix to
+     */
+    void set_matrix_color(RGBColor color);
+
+    /**
+     * @brief Sets all the LEDs on Sphero BOLT with a 8 bit mask
+     *
+     * @param mask The 8 bit mask to set the LEDs with
+     */
+    void set_all_leds_with_8_bit_mask(uint8_t mask, std::vector<uint8_t> led_values);
+
+    /**
+     * @brief Sets LEDs from a map
+     *
+     * @param mapping The mapping of LEDs to values
+     */
+    void set_all_leds_with_map(std::unordered_map<LEDs, uint8_t> mapping);
+
+    /**
+     * @brief Turns off all LEDs on Sphero BOLT
+     *
+     * @private Currently we use std::vector but it might be better to use std::array and make the array at compile time
+     */
+    void turn_off_all_leds();
 };
 
 #endif // SPHERO_H

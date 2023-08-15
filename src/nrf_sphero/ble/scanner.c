@@ -269,7 +269,7 @@ static int scanner_scan_init(void)
     bt_scan_init(&scan_init);
     bt_scan_cb_register(&scan_cb);
 
-    int sphero_names_len = 15;
+    int sphero_names_len = 1;
 
     char* sphero_names[] = {
         "SB-1B35",
