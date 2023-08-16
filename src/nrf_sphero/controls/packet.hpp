@@ -101,6 +101,11 @@ public:
      * @return The parsed Packet.
      */
     static const Packet parse_response(std::vector<unsigned char> data) noexcept(false);
+
+    /**
+     * Computes an id for the packet
+    */
+   const uint32_t id() const;
 };
 
 #endif // PACKET_H

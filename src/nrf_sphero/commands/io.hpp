@@ -1,6 +1,7 @@
 #ifndef IO_H
 #define IO_H
 
+#include "../controls/packet.hpp"
 #include "../sphero.hpp"
 #include "commands.hpp"
 #include <vector>
@@ -20,7 +21,7 @@ public:
      * @param[in] color The color to set matrix to
      * @param[in] tid The target id for the packet (optional)
      */
-    static const void fill_led_matrix(Sphero& sphero, uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, RGBColor color, uint8_t tid = 0);
+    static const Packet fill_led_matrix(Sphero& sphero, uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, RGBColor color, uint8_t tid = 0);
 
     /**
      * @brief Set's Sphero BOLT's LED matrix to specified color
@@ -29,14 +30,14 @@ public:
      * @param[in] color The color to set matrix to
      * @param[in] tid The target id for the packet (optional)
      */
-    static const void set_led_matrix_color(Sphero& sphero, RGBColor color, uint8_t tid = 0);
+    static const Packet set_led_matrix_color(Sphero& sphero, RGBColor color, uint8_t tid = 0);
 
     /**
      * @brief Sets all the LEDs with a 8 bit mask
      *
      * @param mask The 8 bit mask to set the LEDs with
      */
-    static const void set_all_leds_with_8_bit_mask(Sphero& sphero, uint8_t mask, std::vector<uint8_t> led_values, uint8_t tid = 0);
+    static const Packet set_all_leds_with_8_bit_mask(Sphero& sphero, uint8_t mask, std::vector<uint8_t> led_values, uint8_t tid = 0);
 };
 
 #endif // IO_H

@@ -181,5 +181,11 @@ const Packet Packet::parse_response(std::vector<unsigned char> data)
 
     unescaped_data.erase(unescaped_data.begin(), unescaped_data.begin() + 3);
 
-    return Packet(flags, tid, sid, did, cid, seq, err, unescaped_data);
+    return Packet(flags, did, cid, seq, tid, sid, err, unescaped_data);
+}
+
+const uint32_t Packet::id() const
+{
+    uint32_t uniqueID = (static_cast<uint32_t>(did) << 16) | (static_cast<uint32_t>(cid) << 8) | static_cast<uint32_t>(seq);
+    return uniqueID;
 }

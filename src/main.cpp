@@ -49,29 +49,20 @@ int main(void)
 
     LOG_INF("Done");
 
-    // Loop that prints the pointer location of the sphero instance
-    // while (true) {
-    //     for (auto sphero : spheros) {
-    //         LOG_DBG("Pointer location is %p", sphero.get());
-    //         // Sleep for 1 second
-    //         k_msleep(1000);
-    //     }
-    // }
-
     uint16_t angle = 0;
 
     while (1) {
 
-        // HSVColor hsv(angle, 1, 1);
+        HSVColor hsv(angle, 1, 1);
 
-        // angle += 6;
+        angle += 6;
 
-        // LOG_DBG("RGB color is (%d, %d, %d), angle is %d", hsv.toRGB().red, hsv.toRGB().green, hsv.toRGB().blue, angle);
+        LOG_DBG("RGB color is (%d, %d, %d), angle is %d", hsv.toRGB().red, hsv.toRGB().green, hsv.toRGB().blue, angle);
 
-        // // We don't want to exit the thread or else we'll lose the Sphero object which causes undefined behaviour
-        // for (auto sphero : spheros) {
-        //     sphero->set_matrix_fill(0, 0, 7, 7, hsv.toRGB());
-        // }
+        // We don't want to exit the thread or else we'll lose the Sphero object which causes undefined behaviour
+        for (auto sphero : spheros) {
+            sphero->set_matrix_fill(0, 0, 7, 7, hsv.toRGB());
+        }
         k_msleep(100);
     }
 

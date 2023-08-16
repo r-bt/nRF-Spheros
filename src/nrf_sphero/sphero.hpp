@@ -6,8 +6,13 @@
 #include "controls/packet_collector.hpp"
 #include "controls/packet_manager.hpp"
 #include "utils/color.hpp"
+#include <memory>
+#include <optional>
+#include <unordered_map>
 
 #define PACKET_PROCESSING_QUEUE_PRIORITY 4
+
+typedef std::unique_ptr<k_poll_event[]> CommandResponse;
 
 /**
  * This class specifically implements a Sphero BOLT
@@ -46,6 +51,17 @@ private:
      */
     void handle_packet(Packet packet);
 
+    /**
+     * @brief Map of packet keys to queues of k_poll_signals which are used to pass packet response back
+     * to executing function
+     */
+    std::unordered_map<uint32_t, std::shared_ptr<struct k_poll_signal>> waiting;
+
+    /**
+     * @brief Map of packet keys to packets which are used to pass packet response back
+     */
+    std::unordered_map<uint32_t, Packet> responses;
+
 public:
     PacketManager* packet_manager;
 
@@ -71,19 +87,19 @@ public:
      *
      * @note Differs from Sphero v2 since doesn't add to a queue
      */
-    void execute(const Packet& packet);
+    CommandResponse execute(const Packet& packet);
 
     /**
      * @brief Wake up Sphero from soft sleep. Nothing to do if awake.
      */
-    void wake();
+    CommandResponse wake();
 
     /**
      * @brief Sets flags for the locator module.
      *
      * @param locator_flags The flags to set
      */
-    void set_locator_flags(bool locator_flags);
+    CommandResponse set_locator_flags(bool locator_flags);
 
     /**
      * @brief Fills a given region of Sphero BOLT's 8x8 matrix a specific color
@@ -94,21 +110,21 @@ public:
      * @param y2 The y coordinate of the second corner
      * @param color The color to set matrix to
      */
-    void set_matrix_fill(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, RGBColor color);
+    CommandResponse set_matrix_fill(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, RGBColor color);
 
     /**
      * @brief Sets Sphero BOLT's LED matrix to specified color
      *
      * @param color The color to set matrix to
      */
-    void set_matrix_color(RGBColor color);
+    CommandResponse set_matrix_color(RGBColor color);
 
     /**
      * @brief Sets all the LEDs on Sphero BOLT with a 8 bit mask
      *
      * @param mask The 8 bit mask to set the LEDs with
      */
-    void set_all_leds_with_8_bit_mask(uint8_t mask, std::vector<uint8_t> led_values);
+    CommandResponse set_all_leds_with_8_bit_mask(uint8_t mask, std::vector<uint8_t> led_values);
 
     /**
      * @brief Sets LEDs from a map
@@ -123,6 +139,15 @@ public:
      * @private Currently we use std::vector but it might be better to use std::array and make the array at compile time
      */
     void turn_off_all_leds();
+
+    /**
+     * @brief Wait for a packet to be resolved
+     *
+     * @param response The response to wait for
+     *
+     * @retval std::optional<Packet> The packet if it was received
+     */
+    std::optional<Packet> wait_for_response(const CommandResponse& response);
 };
 
 #endif // SPHERO_H
