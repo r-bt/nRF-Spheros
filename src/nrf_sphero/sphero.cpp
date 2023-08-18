@@ -87,12 +87,6 @@ CommandResponse Sphero::execute(const Packet& packet)
 {
     auto payload = packet.build();
 
-    LOG_INF("Sending packet");
-
-    for (size_t i = 0; i < payload.size(); i++) {
-        LOG_INF("%x", payload.at(i));
-    }
-
     bt_sphero_client* sphero_client = scanner_get_sphero(sphero_id);
 
     if (sphero_client == nullptr) {
