@@ -108,6 +108,14 @@ static void gatt_discover(struct bt_conn* conn)
 
 static void connected(struct bt_conn* conn, uint8_t conn_err)
 {
+    struct bt_conn_info info;
+
+    bt_conn_get_info(conn, &info);
+
+    if (info.role != BT_CONN_ROLE_CENTRAL) {
+        return;
+    }
+
     char addr[BT_ADDR_LE_STR_LEN];
     int err;
 
@@ -165,6 +173,14 @@ static void connected(struct bt_conn* conn, uint8_t conn_err)
 
 static void disconnected(struct bt_conn* conn, uint8_t reason)
 {
+    struct bt_conn_info info;
+
+    bt_conn_get_info(conn, &info);
+
+    if (info.role != BT_CONN_ROLE_CENTRAL) {
+        return;
+    }
+
     char addr[BT_ADDR_LE_STR_LEN];
     int err;
 
@@ -186,6 +202,14 @@ static void disconnected(struct bt_conn* conn, uint8_t reason)
 static void security_changed(struct bt_conn* conn, bt_security_t level,
     enum bt_security_err err)
 {
+    struct bt_conn_info info;
+
+    bt_conn_get_info(conn, &info);
+
+    if (info.role != BT_CONN_ROLE_CENTRAL) {
+        return;
+    }
+
     char addr[BT_ADDR_LE_STR_LEN];
 
     bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
@@ -238,8 +262,15 @@ static void scan_filter_match(struct bt_scan_device_info* device_info, struct bt
 
     bt_addr_le_to_str(device_info->recv_info->addr, addr, sizeof(addr));
 
-    LOG_INF("Filters matched. Address: %s connectable: %d",
-        addr, connectable);
+    // Get name of device
+    char name[NAME_LEN];
+
+    (void)memset(name, 0, sizeof(name));
+
+    bt_data_parse(device_info->adv_data, data_cb, name);
+
+    LOG_INF("Filters matched. Address: %s, name %s",
+        addr, name);
 }
 
 static void scan_connecting(struct bt_scan_device_info* device_info, struct bt_conn* conn)
@@ -269,7 +300,7 @@ static int scanner_scan_init(void)
     bt_scan_init(&scan_init);
     bt_scan_cb_register(&scan_cb);
 
-    int sphero_names_len = 15;
+    int sphero_names_len = 5;
 
     char* sphero_names[] = {
         "SB-1B35",
@@ -312,7 +343,7 @@ int scanner_init(void)
     int err;
 
     err = bt_enable(NULL);
-    if (err) {
+    if (err && err != -EALREADY) {
         LOG_ERR("Bluetooth init failed (err %d)", err);
         return err;
     }
