@@ -52,6 +52,11 @@ private:
     void handle_packet(Packet packet);
 
     /**
+     * @brief Handle setting up signals to wait for response
+     */
+    CommandResponse setup_response(const Packet& packet);
+
+    /**
      * @brief Map of packet keys to queues of k_poll_signals which are used to pass packet response back
      * to executing function
      */
@@ -87,19 +92,26 @@ public:
      *
      * @note Differs from Sphero v2 since doesn't add to a queue
      */
-    CommandResponse execute(const Packet& packet);
+    void execute(const Packet& packet);
 
     /**
      * @brief Wake up Sphero from soft sleep. Nothing to do if awake.
      */
-    CommandResponse wake();
+    void wake();
+
+    /**
+     * @brief Wake up Sphero from soft sleep. Nothing to do if awake.
+     *
+     * @retval CommandResponse The response to wait for
+     */
+    CommandResponse wake_with_response();
 
     /**
      * @brief Sets flags for the locator module.
      *
      * @param locator_flags The flags to set
      */
-    CommandResponse set_locator_flags(bool locator_flags);
+    void set_locator_flags(bool locator_flags);
 
     /**
      * @brief Fills a given region of Sphero BOLT's 8x8 matrix a specific color
@@ -110,21 +122,21 @@ public:
      * @param y2 The y coordinate of the second corner
      * @param color The color to set matrix to
      */
-    CommandResponse set_matrix_fill(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, RGBColor color);
+    void set_matrix_fill(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, RGBColor color);
 
     /**
      * @brief Sets Sphero BOLT's LED matrix to specified color
      *
      * @param color The color to set matrix to
      */
-    CommandResponse set_matrix_color(RGBColor color);
+    void set_matrix_color(RGBColor color);
 
     /**
      * @brief Sets all the LEDs on Sphero BOLT with a 8 bit mask
      *
      * @param mask The 8 bit mask to set the LEDs with
      */
-    CommandResponse set_all_leds_with_8_bit_mask(uint8_t mask, std::vector<uint8_t> led_values);
+    void set_all_leds_with_8_bit_mask(uint8_t mask, std::vector<uint8_t> led_values);
 
     /**
      * @brief Sets LEDs from a map

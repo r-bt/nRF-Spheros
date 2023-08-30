@@ -33,7 +33,9 @@ void Sphero::handle_packet(Packet packet)
     auto id = packet.id();
 
     if (waiting.find(id) == waiting.end()) {
-        LOG_ERR("No signal found for packet id %d", id);
+        // NOTE: We don't want to log this since it will happen a lot
+        // NOTE: There are packets which we should handle related to disconnecting
+        // LOG_ERR("No signal found for packet id %d", id);
         return;
     }
 
@@ -42,6 +44,8 @@ void Sphero::handle_packet(Packet packet)
     responses.insert_or_assign(id, packet);
 
     k_poll_signal_raise(signal.get(), id);
+
+    waiting.erase(id);
 }
 
 void Sphero::subscribe()
@@ -71,7 +75,9 @@ Sphero::Sphero(uint8_t id)
 
     subscribe();
 
-    auto response = wake();
+    auto response = wake_with_response();
+
+    k_msleep(100);
 
     wait_for_response(response);
 
@@ -83,25 +89,24 @@ Sphero::~Sphero()
     delete packet_manager;
 };
 
-CommandResponse Sphero::execute(const Packet& packet)
+void Sphero::execute(const Packet& packet)
 {
+
     auto payload = packet.build();
 
     bt_sphero_client* sphero_client = scanner_get_sphero(sphero_id);
 
     if (sphero_client == nullptr) {
         LOG_ERR("Sphero not found");
-        return nullptr;
     }
 
     bt_sphero_client_send(sphero_client, payload.data(), payload.size());
 
     scanner_release_sphero(sphero_client);
+};
 
-    /**
-     * Create a signal and add it to the waiting map
-     */
-
+CommandResponse Sphero::setup_response(const Packet& packet)
+{
     std::shared_ptr<struct k_poll_signal> signal = std::make_shared<struct k_poll_signal>();
 
     k_poll_signal_init(signal.get());
@@ -114,40 +119,49 @@ CommandResponse Sphero::execute(const Packet& packet)
     waiting.insert_or_assign(id, signal);
 
     return events;
-};
+}
 
-CommandResponse Sphero::wake()
+void Sphero::wake()
 {
     auto packet = Power::wake(*this);
 
-    return execute(packet);
+    execute(packet);
 }
 
-CommandResponse Sphero::set_locator_flags(bool locator_flags)
+CommandResponse Sphero::wake_with_response()
+{
+    auto packet = Power::wake(*this);
+
+    execute(packet);
+
+    return setup_response(packet);
+}
+
+void Sphero::set_locator_flags(bool locator_flags)
 {
     auto packet = Sensor::set_locator_flags(*this, locator_flags, static_cast<uint8_t>(Processors::SECONDARY));
 
-    return execute(packet);
+    execute(packet);
 }
 
-CommandResponse Sphero::set_matrix_fill(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, RGBColor color)
+void Sphero::set_matrix_fill(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, RGBColor color)
 {
     auto packet = IO::fill_led_matrix(*this, x1, y1, x2, y2, color, static_cast<uint8_t>(Processors::SECONDARY));
 
-    return execute(packet);
+    execute(packet);
 }
 
-CommandResponse Sphero::set_matrix_color(RGBColor color)
+void Sphero::set_matrix_color(RGBColor color)
 {
     auto packet = IO::set_led_matrix_color(*this, color, static_cast<uint8_t>(Processors::SECONDARY));
 
-    return execute(packet);
+    execute(packet);
 }
 
-CommandResponse Sphero::set_all_leds_with_8_bit_mask(uint8_t mask, std::vector<uint8_t> led_values)
+void Sphero::set_all_leds_with_8_bit_mask(uint8_t mask, std::vector<uint8_t> led_values)
 {
     auto packet = IO::set_all_leds_with_8_bit_mask(*this, mask, led_values, static_cast<uint8_t>(Processors::PRIMARY));
-    return execute(packet);
+    execute(packet);
 }
 
 void Sphero::set_all_leds_with_map(std::unordered_map<Sphero::LEDs, uint8_t> mapping)
@@ -202,7 +216,6 @@ std::optional<Packet> Sphero::wait_for_response(const CommandResponse& response)
     }
 
     responses.erase(res);
-    waiting.erase(res);
 
     return packet->second;
 }

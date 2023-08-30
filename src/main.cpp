@@ -13,7 +13,11 @@ LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 // UART variables
 
 #define RECIEVE_BUFF_SIZE 45
-#define RECIEVE_TIMEOUT 200
+#define RECIEVE_TIMEOUT 250
+#define UART_WAIT_FOR_BUF_DELAY K_MSEC(50)
+#define UART_TX_TIMEOUT 1000000
+
+static struct k_work_delayable uart_work;
 
 const struct device* uart = DEVICE_DT_GET(DT_NODELABEL(uart0));
 
@@ -40,173 +44,135 @@ static void uart_cb(const struct device* dev, struct uart_event* evt, void* user
 {
     ARG_UNUSED(dev);
 
+    static uint8_t* current_buf;
+    static size_t aborted_len;
+    static bool buf_release;
     struct uart_data_t* buf;
-    static bool disable_req;
+    static uint8_t* aborted_buf;
 
     switch (evt->type) {
-    case UART_RX_RDY:
-        LOG_DBG("UART_RX_RDY");
-        buf = CONTAINER_OF(evt->data.rx.buf, struct uart_data_t, data);
-        buf->len = evt->data.rx.len;
-
-        if (disable_req) {
+    case UART_TX_DONE:
+        if ((evt->data.tx.len == 0) || (!evt->data.tx.buf)) {
             return;
         }
 
-        // We only handle one packet at a time
+        if (aborted_buf) {
+            buf = CONTAINER_OF(aborted_buf, struct uart_data_t, data);
 
-        disable_req = true;
-        uart_rx_disable(uart);
+            aborted_buf = NULL;
+            aborted_len = 0;
+        } else {
+            buf = CONTAINER_OF(evt->data.tx.buf, struct uart_data_t, data);
+        }
+
+        k_free(buf);
 
         break;
+    case UART_RX_RDY:
+        buf = CONTAINER_OF(evt->data.rx.buf, struct uart_data_t, data);
+        buf->len += evt->data.rx.len;
+        buf_release = false;
 
+        if (buf->len == RECIEVE_BUFF_SIZE) {
+            k_fifo_put(&fifo_uart_rx_data, buf);
+        } else if ((evt->data.rx.buf[buf->len - 1] == '\n')) {
+            k_fifo_put(&fifo_uart_rx_data, buf);
+            current_buf = evt->data.rx.buf;
+            buf_release = true;
+            uart_rx_disable(uart);
+        }
+
+        break;
     case UART_RX_DISABLED:
-        LOG_DBG("UART_RX_DISABLED");
-        disable_req = false;
-
-        buf = (struct uart_data_t*)k_malloc(sizeof(*buf));
+        buf = (uart_data_t*)k_malloc(sizeof(buf));
         if (buf) {
             buf->len = 0;
         } else {
-            LOG_WRN("Not able to allocate UART receive buffer");
+            LOG_WRN("Not able to allocate UART receive buffer (UART_RX_DISABLED)");
+            k_work_schedule(&uart_work, UART_WAIT_FOR_BUF_DELAY);
             return;
         }
 
         uart_rx_enable(uart, buf->data, sizeof(buf->data), RECIEVE_TIMEOUT);
         break;
     case UART_RX_BUF_REQUEST:
-        LOG_DBG("UART_RX_BUF_RELEASED");
-        buf = (struct uart_data_t*)k_malloc(sizeof(*buf));
-
+        buf = (uart_data_t*)k_malloc(sizeof(*buf));
         if (buf) {
             buf->len = 0;
             uart_rx_buf_rsp(uart, buf->data, sizeof(buf->data));
         } else {
-            LOG_WRN("Not able to allocate UART receive buffer");
+            LOG_WRN("Not able to allocate UART receive buffer (UART_RX_BUF_REQUEST)");
         }
 
         break;
     case UART_RX_BUF_RELEASED:
-        LOG_DBG("UART_RX_BUF_RELEASED");
-
         buf = CONTAINER_OF(evt->data.rx_buf.buf, struct uart_data_t, data);
 
-        if (buf->len > 0) {
-            k_fifo_put(&fifo_uart_rx_data, buf);
-        } else {
+        if (buf_release && (current_buf != evt->data.rx_buf.buf)) {
             k_free(buf);
+            buf_release = false;
+            current_buf = NULL;
         }
 
         break;
+
     case UART_TX_ABORTED:
-        LOG_DBG("UART_TX_ABORTED");
+        if (!aborted_buf) {
+            aborted_buf = (uint8_t*)evt->data.tx.buf;
+        }
+
+        aborted_len += evt->data.tx.len;
+        buf = CONTAINER_OF(aborted_buf, struct uart_data_t, data);
+
+        uart_tx(uart, &buf->data[aborted_len], buf->len - aborted_len, SYS_FOREVER_MS);
+
         break;
     default:
         break;
     }
+}
 
-    // struct state_callbacks* callbacks = (struct state_callbacks*)user_data;
+static void uart_work_handler(struct k_work* item)
+{
+    struct uart_data_t* buf;
 
-    // switch (evt->type) {
-    // case UART_RX_RDY:
-    //     if (state == States::IDLE) {
-    //         switch (evt->data.rx.buf[evt->data.rx.offset]) {
-    //         case 1:
-    //             state = States::MATCH;
-    //             callbacks->match_callback();
-    //             break;
-    //         case 2:
-    //             state = States::SET_COLORS;
-    //             break;
-    //         default:
-    //             break;
-    //         }
-    //     } else if (state == States::MATCH) {
-    //         switch (evt->data.rx.buf[evt->data.rx.offset]) {
-    //         case 0:
-    //             state == States::IDLE;
-    //             callbacks->match_exit_callback();
-    //             break;
-    //         case 1:
-    //             // Increment which one we're matching
-    //             callbacks->match_callback();
-    //             break;
-    //         default:
-    //             break;
-    //         }
-    //     } else if (state == States::SET_COLORS) {
-    //         if (evt->data.rx.len == 1 && evt->data.rx.buf[evt->data.rx.offset] == 0) {
-    //             state == States::IDLE;
-    //         } else {
-    //             callbacks->set_colors_callback(evt->data.rx);
-    //         }
-    //     }
-    //     break;
-    // case UART_RX_DISABLED:
-    //     uart_rx_enable(dev, rx_buf, sizeof rx_buf, RECIEVE_TIMEOUT);
-    //     break;
-    // case UART_TX_DONE:
-    //     break;
-    // case UART_TX_ABORTED:
-    //     LOG_ERR("Sending aborted");
-    //     break;
-    // default:
-    //     break;
-    // }
+    LOG_DBG("Going to make the buffer");
+    buf = (uart_data_t*)k_malloc(sizeof(*buf));
+    LOG_DBG("Made the buffer!");
+
+    if (buf) {
+        buf->len = 0;
+    } else {
+        LOG_WRN("Not able to allocate UART receive buffer (uart_work_handler)");
+        k_work_schedule(&uart_work, UART_WAIT_FOR_BUF_DELAY);
+        return;
+    }
+
+    uart_rx_enable(uart, buf->data, sizeof(buf->data), RECIEVE_TIMEOUT);
 }
 
 static int uart_init(void)
 {
     int err;
-    int pos;
 
     struct uart_data_t* rx;
-    struct uart_data_t* tx;
 
     if (!device_is_ready(uart)) {
         return -ENODEV;
     }
 
     rx = (struct uart_data_t*)k_malloc(sizeof(*rx));
-
-    if (!rx) {
+    if (rx) {
+        rx->len = 0;
+    } else {
         return -ENOMEM;
     }
-
-    rx->len = 0;
 
     err = uart_callback_set(uart, uart_cb, NULL);
 
     if (err) {
-        k_free(rx);
         LOG_ERR("Cannot initalize UART callback");
         return err;
-    }
-
-    tx = (struct uart_data_t*)k_malloc(sizeof(*tx));
-
-    if (tx) {
-        pos = snprintf((char*)tx->data, sizeof(tx->data), "Starting swarmalator model\r\n");
-
-        if ((pos < 0 || pos >= sizeof(tx->data))) {
-            k_free(tx);
-            k_free(rx);
-            LOG_ERR("snprintf returned %d", pos);
-            return -ENOMEM;
-        }
-
-        tx->len = pos;
-    } else {
-        k_free(rx);
-        return -ENOMEM;
-    }
-
-    err = uart_tx(uart, tx->data, tx->len, SYS_FOREVER_MS);
-
-    if (err) {
-        k_free(rx);
-        k_free(tx);
-        LOG_ERR("Cannot display welcome message (err: %d)", err);
     }
 
     err = uart_rx_enable(uart, rx->data, sizeof(rx->data), RECIEVE_TIMEOUT);
@@ -311,35 +277,71 @@ int main(void)
 
     // Run the state machine
 
-    while (true) {
-        struct uart_data_t* rx = (struct uart_data_t*)k_fifo_get(&fifo_uart_rx_data, K_NO_WAIT);
+    // while (true) {
+    //     struct uart_data_t* rx = (struct uart_data_t*)k_fifo_get(&fifo_uart_rx_data, K_NO_WAIT);
 
-        if (rx) {
-            LOG_DBG("Recieved %d bytes", rx->len);
+    //     if (rx) {
+    //         LOG_DBG("Recieved %d bytes", rx->len);
 
-            if (rx->len != 45) {
-                LOG_ERR("Recieved %d bytes, expected 45", rx->len);
-                k_free(rx);
-                continue;
+    //         if (rx->len != 45) {
+    //             LOG_ERR("Recieved %d bytes, expected 45", rx->len);
+    //             k_free(rx);
+    //             continue;
+    //         }
+
+    //         for (int i = 0; i < std::min(spheros.size(), static_cast<std::size_t>(rx->len / 3)); i++) {
+    //             auto color = RGBColor(rx->data[i * 3], rx->data[i * 3 + 1], rx->data[i * 3 + 2]);
+    //             LOG_DBG("Color is: (%d, %d, %d)", color.red, color.green, color.blue);
+    //             // spheros[i]->set_matrix_color(color);
+    //         }
+
+    //         k_free(rx);
+
+    //         uint8_t tx_buf[] = { 0x8d,  };
+
+    //         int ret = uart_tx(uart, tx_buf, sizeof(tx_buf), SYS_FOREVER_MS);
+    //         if (ret) {
+    //             LOG_ERR("Error when sending data to UART (err %d)", ret);
+    //             break;
+    //         }
+    //     }
+    // }
+
+    struct uart_data_t* tx;
+
+    for (;;) {
+        struct uart_data_t* buf;
+        buf = (uart_data_t*)k_fifo_get(&fifo_uart_rx_data, K_FOREVER);
+
+        if (buf) {
+            for (int i = 0; i < std::min(spheros.size(), static_cast<std::size_t>(buf->len / 3)); i++) {
+                auto color = RGBColor(buf->data[i * 3], buf->data[i * 3 + 1], buf->data[i * 3 + 2]);
+                // LOG_DBG("Color is: (%d, %d, %d)", color.red, color.green, color.blue);
+                spheros[i]->set_matrix_color(color);
             }
 
-            for (int i = 0; i < std::min(spheros.size(), static_cast<std::size_t>(rx->len / 3)); i++) {
-                auto color = RGBColor(rx->data[i * 3], rx->data[i * 3 + 1], rx->data[i * 3 + 2]);
-                LOG_DBG("Color is: (%d, %d, %d)", color.red, color.green, color.blue);
-                // spheros[i]->set_matrix_color(color);
-            }
+            k_free(buf);
 
-            k_free(rx);
+            tx = (struct uart_data_t*)k_malloc(sizeof(*tx));
 
-            uint8_t tx_buf[] = { 0x8d,  };
+            uint8_t data[] = { 0x8d, 0x01, '\n' };
 
-            int ret = uart_tx(uart, tx_buf, sizeof(tx_buf), SYS_FOREVER_MS);
-            if (ret) {
-                LOG_ERR("Error when sending data to UART (err %d)", ret);
+            tx->len = sizeof(data);
+            memcpy(tx->data, data, sizeof(data));
+
+            err = uart_tx(uart, tx->data, tx->len, SYS_FOREVER_MS);
+            if (err) {
+                LOG_ERR("Error when sending data to UART (err %d)", err);
                 break;
             }
+
+            continue;
         }
+
+        k_free(buf);
     }
+
+    return 0;
 
     // SETUP BLUETOOTH
 
@@ -387,6 +389,4 @@ int main(void)
     // //     // }
     // //     k_msleep(100);
     // // }
-
-    return 0;
 }
