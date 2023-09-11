@@ -27,6 +27,12 @@ private:
     /** @brief The id of the Sphero Context */
     uint8_t sphero_id;
 
+    /** @brief The index of the next animation frame */
+    uint16_t frame_index;
+
+    /** @brief The index of the next animation */
+    uint8_t animation_index;
+
     /**
      * @brief Subscribe to notifications from the Sphero
      */
@@ -66,6 +72,16 @@ private:
      * @brief Map of packet keys to packets which are used to pass packet response back
      */
     std::unordered_map<uint32_t, Packet> responses;
+
+    /**
+     * @brief Creates packet to tell Sphero to drive with speed in heading
+     *
+     * @param[in] speed The speed to drive at
+     * @param[in] heading The heading to drive at
+     *
+     * @retval
+     */
+    Packet get_drive_packet(uint8_t speed, uint16_t heading);
 
 public:
     PacketManager* packet_manager;
@@ -132,6 +148,68 @@ public:
     void set_matrix_color(RGBColor color);
 
     /**
+     * @brief Set indivudal pixel on Sphero BOLT's LED matrix to specified color
+     * @param[in] x The x coordinate of the pixel
+     * @param[in] y The y coordinate of the pixel
+     * @param[in] color The color to set the pixel to
+     */
+    void set_matrix_pixel_color(uint8_t x, uint8_t y, RGBColor color);
+
+    /**
+     * @brief Display character on Sphero BOLT's LED matrix
+     *
+     * @param[in] char The character to display
+     * @param[in] color The color to set the pixel to
+     */
+    void set_matrix_character(unsigned char str, RGBColor color);
+
+    /**
+     * @brief Registers a matrix animation
+     *
+     * @param[in] Frames is a list of frame. Each frame is a list of 8 row, each row is a list of 8 ints (from 0 to 15, index in color palette)
+     * @param[in] palette is a list of colors
+     * @param[in] fps
+     * @param[in] transition to true if fade between frames
+     */
+    void register_matrix_animation(std::vector<std::vector<std::vector<uint8_t>>> frames, std::vector<RGBColor> palette, uint8_t fps, bool transition);
+
+    /**
+     * @brief Saves a compressed frame with a specified index
+     *
+     * @param[in] index The index of the frame
+     * @param[in] frame The frame to save
+     */
+    void save_compressed_frame(uint8_t index, std::vector<uint8_t> frame);
+
+    /**
+     * @brief Saves a compressed frame with a specified index
+     *
+     * @param[in] index The index of the frame
+     * @param[in] frame The frame to save
+     *
+     * @retval CommandResponse The response to wait for
+     */
+    CommandResponse save_compressed_frame_with_response(uint8_t index, std::vector<uint8_t> frame);
+
+    /**
+     * @brief Save an animation
+     *
+     * @param[in] fps The frame rate of the animation
+     * @param[in] fade_animation Whether or not to fade between frames
+     * @param[in] palette The palette of colors to use
+     * @param[in] frame_indexes The indexes of frames in the animation
+     */
+    void save_compressed_frame_animation(uint8_t fps, bool fade_animation, std::vector<RGBColor> palette, std::vector<uint16_t> frame_indexes);
+
+    /**
+     * @brief Play an animation
+     *
+     * @param[in] animation_id The id of the animation
+     * @param[in] loop Whether or not to loop the animation
+     */
+    void play_animation(uint8_t animation_id, bool loop = true);
+
+    /**
      * @brief Sets all the LEDs on Sphero BOLT with a 8 bit mask
      *
      * @param mask The 8 bit mask to set the LEDs with
@@ -151,6 +229,41 @@ public:
      * @private Currently we use std::vector but it might be better to use std::array and make the array at compile time
      */
     void turn_off_all_leds();
+
+    /**
+     * @brief Drive the sphero
+     *
+     * @param[in] speed The speed to drive at
+     * @param[in] heading The heading to drive at
+     */
+    void drive(uint8_t speed, uint16_t heading);
+
+    /**
+     * @brief Drive the sphero
+     *
+     * @param[in] speed The speed to drive at
+     * @param[in] heading The heading to drive at
+     *
+     * @retval CommandResponse The response to wait for
+     */
+    CommandResponse drive_with_response(uint8_t speed, uint16_t heading);
+
+    /**
+     * @brief Sets the direction the robot will drive in
+     *
+     * @note Assuming you aim the robot with the blue tail light facing you, then 0° is forward, 90° is right,
+     * 270° is left, and 180° is backward.
+     *
+     * @param[in] heading The heading to drive at
+     */
+    void set_heading(uint16_t heading);
+
+    /**
+     * @brief Reset aim
+     *
+     * @note Resets the heading calibration (aim) angle to use the current direction of the robot as 0°
+     */
+    void reset_aim();
 
     /**
      * @brief Wait for a packet to be resolved

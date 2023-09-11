@@ -7,6 +7,7 @@
 // Logging
 #include <algorithm> // std::min
 #include <zephyr/logging/log.h>
+#include <zephyr/timing/timing.h>
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 
@@ -37,7 +38,7 @@ enum class States {
     SET_COLORS = 2,
 };
 
-States state = States::SET_COLORS;
+States state = States::IDLE;
 uint8_t matching = 0;
 
 static void uart_cb(const struct device* dev, struct uart_event* evt, void* user_data)
@@ -238,6 +239,106 @@ void set_colors(const std::vector<std::shared_ptr<Sphero>>& spheros, uart_event_
     }
 };
 
+bool validate_uart_packet(uart_data_t* rx)
+{
+    // Check for starting byte
+    if (rx->data[0] != 0x8d) {
+        LOG_ERR("Recieved invalid starting byte: 0x%02x", rx->data[0]);
+        return false;
+    }
+
+    // Check for ending byte
+    if (rx->data[rx->len - 1] != 0x0a) {
+        LOG_ERR("Recieved invalid ending byte: 0x%02x", rx->data[rx->len - 1]);
+        return false;
+    }
+
+    return true;
+}
+
+// Function to convert a uint8_t to States enum, with error handling
+States uint8ToState(uint8_t value)
+{
+    if (value >= static_cast<uint8_t>(States::IDLE) && value <= static_cast<uint8_t>(States::SET_COLORS)) {
+        return static_cast<States>(value);
+    } else {
+        return States::IDLE;
+    }
+}
+
+void handle_idle_state(uart_data_t* rx)
+{
+    if (rx->len != 4) {
+        LOG_ERR("Recieved %d bytes, expected 4", rx->len);
+        return;
+    }
+
+    if (rx->data[1] != 0x01) {
+        LOG_ERR("Recieved invalid command byte: 0x%02x", rx->data[1]);
+        return;
+    }
+
+    state = uint8ToState(rx->data[2]);
+}
+
+uint8_t matching_index = 0;
+
+std::vector<std::vector<uint8_t>> frame = {
+    { 1, 1, 0, 0, 0, 0, 0, 0 },
+    { 1, 1, 0, 0, 0, 0, 0, 0 },
+    { 1, 1, 0, 0, 0, 0, 0, 0 },
+    { 1, 1, 0, 0, 0, 1, 1, 1 },
+    { 1, 1, 0, 0, 0, 1, 1, 1 },
+    { 1, 1, 0, 0, 0, 0, 0, 0 },
+    { 1, 1, 0, 0, 0, 0, 0, 0 },
+    { 1, 1, 0, 0, 0, 0, 0, 0 },
+};
+
+std::vector<RGBColor> palette = { RGBColor(0, 0, 0), RGBColor(255, 255, 255) };
+
+void handle_match_state(uart_data_t* rx, std::vector<std::shared_ptr<Sphero>>* spheros)
+{
+    if (matching >= spheros->size()) {
+        LOG_ERR("Matching is greater than number of spheros");
+        return;
+    }
+
+    if (rx->len < 3) {
+        LOG_ERR("Recieved %d bytes, expected at least 3", rx->len);
+        return;
+    }
+
+    // Increment matching index
+    if (rx->data[1] == 0x01) {
+        matching_index++;
+
+        auto sphero = (*spheros)[matching_index - 1];
+
+        sphero->set_matrix_color(RGBColor(0, 0, 0));
+    }
+
+    // Set matrix to all white
+    if (rx->data[1] == 0x02) {
+        auto sphero = (*spheros)[matching_index];
+
+        sphero->set_matrix_color(RGBColor(255, 255, 255));
+    }
+
+    // Switch to orientation
+    if (rx->data[1] == 0x03) {
+        auto sphero = (*spheros)[matching_index];
+
+        sphero->register_matrix_animation({ frame }, palette, 10, false);
+        k_msleep(500);
+        sphero->play_animation(0);
+    }
+}
+
+void reset()
+{
+    state == States::IDLE;
+}
+
 int main(void)
 {
     // SETUP UART
@@ -277,6 +378,41 @@ int main(void)
 
     // Run the state machine
 
+    for (;;) {
+        struct uart_data_t* rx;
+        rx = (struct uart_data_t*)k_fifo_get(&fifo_uart_rx_data, K_FOREVER);
+
+        if (rx) {
+
+            LOG_DBG("Recieved %d bytes", rx->len);
+
+            // if (!validate_uart_packet(rx)) {
+            //     k_free(rx);
+            //     continue;
+            // }
+
+            // if (rx->data[1] == 0x00) {
+            //     // Resets states to IDLE
+            //     reset();
+            // }
+
+            // switch (state) {
+            // case States::IDLE:
+            //     handle_idle_state(rx);
+            //     break;
+            // case States::MATCH:
+            //     handle_match_state(rx, &spheros);
+            //     break;
+            // }
+
+            k_free(rx);
+        }
+
+        k_msleep(10);
+    }
+
+    // Run the state machine
+
     // while (true) {
     //     struct uart_data_t* rx = (struct uart_data_t*)k_fifo_get(&fifo_uart_rx_data, K_NO_WAIT);
 
@@ -307,39 +443,131 @@ int main(void)
     //     }
     // }
 
-    struct uart_data_t* tx;
+    // struct uart_data_t* tx;
 
-    for (;;) {
-        struct uart_data_t* buf;
-        buf = (uart_data_t*)k_fifo_get(&fifo_uart_rx_data, K_FOREVER);
+    // std::vector<std::vector<uint8_t>> frame = {
+    //     { 1, 1, 0, 0, 0, 0, 0, 0 },
+    //     { 1, 1, 0, 0, 0, 0, 0, 0 },
+    //     { 1, 1, 0, 0, 0, 0, 0, 0 },
+    //     { 1, 1, 0, 0, 0, 1, 1, 1 },
+    //     { 1, 1, 0, 0, 0, 1, 1, 1 },
+    //     { 1, 1, 0, 0, 0, 0, 0, 0 },
+    //     { 1, 1, 0, 0, 0, 0, 0, 0 },
+    //     { 1, 1, 0, 0, 0, 0, 0, 0 },
+    // };
 
-        if (buf) {
-            for (int i = 0; i < std::min(spheros.size(), static_cast<std::size_t>(buf->len / 3)); i++) {
-                auto color = RGBColor(buf->data[i * 3], buf->data[i * 3 + 1], buf->data[i * 3 + 2]);
-                // LOG_DBG("Color is: (%d, %d, %d)", color.red, color.green, color.blue);
-                spheros[i]->set_matrix_color(color);
-            }
+    // std::vector<RGBColor> palette = { RGBColor(0, 0, 0), RGBColor(255, 255, 255) };
 
-            k_free(buf);
+    // LOG_DBG("Setting  matrix");
 
-            tx = (struct uart_data_t*)k_malloc(sizeof(*tx));
+    // for (auto sphero : spheros) {
+    //     // sphero->set_matrix_image(image);
+    //     sphero->register_matrix_animation({ frame }, palette, 10, false);
+    //     k_msleep(500);
+    //     sphero->play_animation(0);
+    // }
 
-            uint8_t data[] = { 0x8d, 0x01, '\n' };
+    // uint8_t angle = 0;
 
-            tx->len = sizeof(data);
-            memcpy(tx->data, data, sizeof(data));
+    // for (;;) {
+    //     struct uart_data_t* rx = (struct uart_data_t*)k_fifo_get(&fifo_uart_rx_data, K_NO_WAIT);
 
-            err = uart_tx(uart, tx->data, tx->len, SYS_FOREVER_MS);
-            if (err) {
-                LOG_ERR("Error when sending data to UART (err %d)", err);
-                break;
-            }
+    //     if (rx) {
+    //         LOG_DBG("Recieved %d bytes", rx->len);
 
-            continue;
-        }
+    //         int heading = (rx->data[0] << 8) | (rx->data[1]);
 
-        k_free(buf);
-    }
+    //         LOG_DBG("Angle is: %d", heading);
+
+    //         auto response = spheros[0]->drive_with_response(0, heading);
+
+    //         spheros[0]->wait_for_response(response);
+
+    //         k_msleep(600);
+
+    //         spheros[0]->reset_aim();
+
+    //         k_free(rx);
+    //     }
+
+    //     k_msleep(100);
+    // }
+
+    // while (true) {
+    //     struct uart_data_t* rx = (struct uart_data_t*)k_fifo_get(&fifo_uart_rx_data, K_NO_WAIT);
+
+    //     if (rx) {
+    //         LOG_DBG("Recieved %d bytes", rx->len);
+
+    //         // LOG_DBG("Angle is: %d", rx->data[0]);
+
+    //         k_free(rx);
+
+    //         // if (rx->len != 45) {
+    //         //     LOG_ERR("Recieved %d bytes, expected 45", rx->len);
+    //         //     k_free(rx);
+    //         //     continue;
+    //         // }
+
+    //         // for (int i = 0; i < std::min(spheros.size(), static_cast<std::size_t>(rx->len / 3)); i++) {
+    //         //     auto color = RGBColor(rx->data[i * 3], rx->data[i * 3 + 1], rx->data[i * 3 + 2]);
+    //         //     LOG_DBG("Color is: (%d, %d, %d)", color.red, color.green, color.blue);
+    //         //     // spheros[i]->set_matrix_color(color);
+    //         // }
+
+    //         // k_free(rx);
+
+    //         // uint8_t tx_buf[] = {
+    //         //     0x8d,
+    //         // };
+
+    //         // int ret = uart_tx(uart, tx_buf, sizeof(tx_buf), SYS_FOREVER_MS);
+    //         // if (ret) {
+    //         //     LOG_ERR("Error when sending data to UART (err %d)", ret);
+    //         //     break;
+    //         // }
+    //     }
+    // }
+
+    // for (;;) {
+    //     for (auto sphero : spheros) {
+    //         sphero->drive(0, angle);
+    //     }
+
+    //     angle += 1;
+    //     // struct uart_data_t* buf;
+    //     // buf = (uart_data_t*)k_fifo_get(&fifo_uart_rx_data, K_FOREVER);
+
+    //     // if (buf) {
+    //     //     for (int i = 0; i < std::min(spheros.size(), static_cast<std::size_t>(buf->len / 3)); i++) {
+    //     //         auto color = RGBColor(buf->data[i * 3], buf->data[i * 3 + 1], buf->data[i * 3 + 2]);
+    //     //         // LOG_DBG("Color is: (%d, %d, %d)", color.red, color.green, color.blue);
+
+    //     //         spheros[i]->set_matrix_color(color);
+    //     //     }
+
+    //     //     k_free(buf);
+
+    //     //     tx = (struct uart_data_t*)k_malloc(sizeof(*tx));
+
+    //     //     uint8_t data[] = { 0x8d, 0x01, '\n' };
+
+    //     //     tx->len = sizeof(data);
+    //     //     memcpy(tx->data, data, sizeof(data));
+
+    //     //     err = uart_tx(uart, tx->data, tx->len, SYS_FOREVER_MS);
+    //     //     if (err) {
+    //     //         LOG_ERR("Error when sending data to UART (err %d)", err);
+    //     //         break;
+    //     //     }
+
+    //     //     continue;
+    //     // }
+
+    //     // k_free(buf);
+
+    //     k_msleep(100);
+    // }
 
     return 0;
 

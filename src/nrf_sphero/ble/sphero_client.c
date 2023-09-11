@@ -42,6 +42,11 @@ static void on_sent(struct bt_conn* conn, uint8_t err, struct bt_gatt_write_para
 
     /* Clear the write pending flag */
     atomic_clear_bit(&sphero_c->state, SPHERO_C_WRITE_PENDING);
+
+    /* Give the semaphore */
+    k_sem_give(&sphero_c->sending);
+
+    /* Run the callback */
     if (sphero_c->cb.sent) {
         sphero_c->cb.sent(sphero_c, err, data, length);
     }
@@ -59,12 +64,22 @@ int bt_sphero_client_init(struct bt_sphero_client* sphero_c, const struct bt_sph
 
     memcpy(&sphero_c->cb, &sphero_c_init->cb, sizeof(sphero_c->cb));
 
+    k_sem_init(&sphero_c->sending, 1, 1);
+
     return 0;
 }
 
 int bt_sphero_client_send(struct bt_sphero_client* sphero_c, const uint8_t* data, uint16_t len)
 {
     int err;
+
+    // NOTE: THIS TIMEOUT SHOULD BE SHORTER
+    err = k_sem_take(&sphero_c->sending, K_MSEC(400));
+
+    if (err != 0) {
+        LOG_ERR("Timeout while sending payload: Err %d", err);
+        return err;
+    }
 
     if (!sphero_c->conn) {
         return -ENOTCONN;
