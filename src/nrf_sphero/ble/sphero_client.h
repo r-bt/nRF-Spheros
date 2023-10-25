@@ -82,6 +82,9 @@ struct bt_sphero_client {
 
     atomic_t state;
 
+    /** @brief Semaphore for if is sending BLE data */
+    struct k_mutex sending;
+
     /**
      * Handles on the connected device that are needed to interact with it
      */
