@@ -108,7 +108,7 @@ public:
      *
      * @note Differs from Sphero v2 since doesn't add to a queue
      */
-    void execute(const Packet& packet);
+    void execute(const Packet& packet, bool test = false);
 
     /**
      * @brief Wake up Sphero from soft sleep. Nothing to do if awake.
@@ -208,6 +208,11 @@ public:
      * @param[in] loop Whether or not to loop the animation
      */
     void play_animation(uint8_t animation_id, bool loop = true);
+
+    /**
+     * @brief Clears animation from LED matrix
+     */
+    void clear_matrix();
 
     /**
      * @brief Sets all the LEDs on Sphero BOLT with a 8 bit mask

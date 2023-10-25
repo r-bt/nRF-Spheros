@@ -104,3 +104,10 @@ const Packet IO::play_animation(Sphero& sphero, uint8_t animation_id, bool loop,
 
     return packet;
 }
+
+const Packet IO::clear_matrix(Sphero& sphero, uint8_t tid)
+{
+    auto packet = encode(*sphero.packet_manager, IO_DID, 56, tid);
+
+    return packet;
+}

@@ -15,6 +15,7 @@ enum {
 
 static uint8_t on_received(struct bt_conn* conn, struct bt_gatt_subscribe_params* params, const void* data, uint16_t length)
 {
+
     struct bt_sphero_client* sphero_c;
 
     // Retrieve Sphero Client module context

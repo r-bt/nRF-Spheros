@@ -102,6 +102,15 @@ static void gatt_discover(struct bt_conn* conn)
     bt_conn_ctx_release(&conns_ctx_lib, (void*)sphero_client);
 }
 
+/**
+ * Callbacks for Sphero Client
+ */
+
+static void sphero_sent(struct bt_sphero_client* sphero, uint8_t err, const uint8_t* const data, uint16_t len)
+{
+    LOG_DBG("Sent!");
+}
+
 /*
  * Connected code
  */
@@ -269,7 +278,7 @@ static int scanner_scan_init(void)
     bt_scan_init(&scan_init);
     bt_scan_cb_register(&scan_cb);
 
-    int sphero_names_len = 5;
+    int sphero_names_len = 15;
 
     char* sphero_names[] = {
         "SB-1B35",

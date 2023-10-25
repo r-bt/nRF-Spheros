@@ -88,6 +88,14 @@ public:
     static const Packet play_animation(Sphero& sphero, uint8_t animation_id, bool loop = true, uint8_t tid = 0);
 
     /**
+     * @brief Clear matrix of animations
+     *
+     * @param[in] sphero The Sphero to send the command to
+     * @param[in] tid The target id for the packet (optional)
+     */
+    static const Packet clear_matrix(Sphero& sphero, uint8_t tid = 0);
+
+    /**
      * @brief Sets all the LEDs with a 8 bit mask
      *
      * @param mask The 8 bit mask to set the LEDs with

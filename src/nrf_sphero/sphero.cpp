@@ -4,7 +4,6 @@
 #include "controls/packet_collector.hpp"
 #include "controls/processors.hpp"
 #include "utils/color.hpp"
-#include <algorithm> // Include for std::min
 #include <functional>
 #include <future>
 #include <memory>
@@ -93,7 +92,7 @@ Sphero::~Sphero()
     delete packet_manager;
 };
 
-void Sphero::execute(const Packet& packet)
+void Sphero::execute(const Packet& packet, bool test)
 {
 
     auto payload = packet.build();
@@ -110,12 +109,14 @@ void Sphero::execute(const Packet& packet)
 
     while (offset < payload.size()) {
         size_t remainingBytes = payload.size() - offset;
-        size_t bytesToSend = std::min(chunkSize, remainingBytes);
+        size_t bytesToSend = chunkSize < remainingBytes ? chunkSize : remainingBytes;
 
-        int err = bt_sphero_client_send(sphero_client, payload.data() + offset, bytesToSend);
+        if (!test) {
+            int err = bt_sphero_client_send(sphero_client, payload.data() + offset, bytesToSend);
 
-        if (err) {
-            LOG_ERR("Error sending data!");
+            if (err) {
+                LOG_ERR("Error sending data!");
+            }
         }
 
         offset += bytesToSend;
@@ -249,6 +250,13 @@ void Sphero::play_animation(uint8_t animation_id, bool loop)
     execute(packet);
 }
 
+void Sphero::clear_matrix()
+{
+    auto packet = IO::clear_matrix(*this, static_cast<uint8_t>(Processors::SECONDARY));
+
+    execute(packet);
+}
+
 void Sphero::set_all_leds_with_8_bit_mask(uint8_t mask, std::vector<uint8_t> led_values)
 {
     auto packet = IO::set_all_leds_with_8_bit_mask(*this, mask, led_values, static_cast<uint8_t>(Processors::PRIMARY));
@@ -290,12 +298,12 @@ Packet Sphero::get_drive_packet(uint8_t speed, uint16_t heading)
 {
     DriveFlags flag = DriveFlags::FORWARD;
 
-    if (speed < 0) {
-        flag = DriveFlags::BACKWARD;
-        heading = (heading + 180) % 360;
-    }
+    // if (speed < 0) {
+    //     flag = DriveFlags::BACKWARD;
+    //     heading = (heading + 180) % 360;
+    // }
 
-    speed = std::min(255, std::abs(speed));
+    speed = speed > 255 ? 255 : speed;
 
     auto packet = Drive::drive(*this, speed, heading, flag, static_cast<uint8_t>(Processors::SECONDARY));
 
