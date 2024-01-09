@@ -11,8 +11,8 @@ LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
 
 // UART variables
 
-#define RECIEVE_BUFF_SIZE 48
-#define UART_RX_TIMEOUT 25
+#define RECIEVE_BUFF_SIZE 93
+#define UART_RX_TIMEOUT 100
 #define UART_WAIT_FOR_BUF_DELAY K_MSEC(50)
 
 static struct k_work_delayable uart_work;
@@ -50,7 +50,6 @@ static void uart_cb(const struct device* dev, struct uart_event* evt, void* user
 
     switch (evt->type) {
     case UART_TX_DONE:
-        LOG_DBG("UART_TX_DONE");
         if ((evt->data.tx.len == 0) || (!evt->data.tx.buf)) {
             return;
         }
@@ -80,7 +79,6 @@ static void uart_cb(const struct device* dev, struct uart_event* evt, void* user
         break;
 
     case UART_RX_RDY:
-        LOG_DBG("UART_RX_RDY");
         buf = CONTAINER_OF(evt->data.rx.buf, struct uart_data_t, data);
         buf->len += evt->data.rx.len;
 
@@ -96,7 +94,6 @@ static void uart_cb(const struct device* dev, struct uart_event* evt, void* user
         break;
 
     case UART_RX_DISABLED:
-        LOG_DBG("UART_RX_DISABLED");
         disable_req = false;
 
         buf = (uart_data_t*)k_malloc(sizeof(*buf));
@@ -114,7 +111,6 @@ static void uart_cb(const struct device* dev, struct uart_event* evt, void* user
         break;
 
     case UART_RX_BUF_REQUEST:
-        LOG_DBG("UART_RX_BUF_REQUEST");
         buf = (uart_data_t*)k_malloc(sizeof(*buf));
         if (buf) {
             buf->len = 0;
@@ -126,7 +122,6 @@ static void uart_cb(const struct device* dev, struct uart_event* evt, void* user
         break;
 
     case UART_RX_BUF_RELEASED:
-        LOG_DBG("UART_RX_BUF_RELEASED");
         buf = CONTAINER_OF(evt->data.rx_buf.buf, struct uart_data_t,
             data);
 
@@ -140,7 +135,6 @@ static void uart_cb(const struct device* dev, struct uart_event* evt, void* user
         break;
 
     case UART_TX_ABORTED:
-        LOG_DBG("UART_TX_ABORTED");
         if (!aborted_buf) {
             aborted_buf = (uint8_t*)evt->data.tx.buf;
         }
@@ -338,8 +332,7 @@ void handle_match_state(uart_data_t* rx, std::vector<std::shared_ptr<Sphero>>* s
 
 void handle_color_state(uart_data_t* rx, std::vector<std::shared_ptr<Sphero>>* spheros)
 {
-
-    if (rx->len != 48) {
+    if (rx->len != 93) {
         LOG_ERR("Recieved %d bytes, expected 48", rx->len);
         return;
     }
@@ -349,9 +342,18 @@ void handle_color_state(uart_data_t* rx, std::vector<std::shared_ptr<Sphero>>* s
         return;
     }
 
+    // Set the state colors
     for (int i = 0; i < spheros->size(); i++) {
         auto color = RGBColor(rx->data[(i * 3) + 2], rx->data[(i * 3 + 1) + 2], rx->data[(i * 3 + 2) + 2]);
         (*spheros)[i]->set_matrix_color(color);
+    }
+
+    // Set the velocities
+    for (int i = 0; i < spheros->size(); i++) {
+        uint8_t speed = rx->data[47 + (i * 3)];
+        uint16_t heading = (rx->data[47 + (i * 3) + 1] << 8) | (rx->data[47 + (i * 3) + 2]); // big-endian format
+        LOG_DBG("Speed is: %d, heading is: %d", speed, heading);
+        (*spheros)[i]->drive(speed, heading);
     }
 }
 
