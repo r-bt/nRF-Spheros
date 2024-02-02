@@ -240,6 +240,8 @@ public:
      *
      * @param[in] speed The speed to drive at
      * @param[in] heading The heading to drive at
+     * 
+     * @note Sphero Logo is the front of the robot. 0° is forward, 90° is right, 270° is left, and 180° is backward.
      */
     void drive(uint8_t speed, uint16_t heading);
 
@@ -248,6 +250,8 @@ public:
      *
      * @param[in] speed The speed to drive at
      * @param[in] heading The heading to drive at
+     * 
+     * @note Sphero Logo is the front of the robot. 0° is forward, 90° is right, 270° is left, and 180° is backward.
      *
      * @retval CommandResponse The response to wait for
      */

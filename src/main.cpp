@@ -268,14 +268,14 @@ void handle_idle_state(uart_data_t* rx)
 uint8_t matching_index = 0;
 
 std::vector<std::vector<uint8_t>> frame = {
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 1, 1, 1 },
-    { 1, 1, 0, 0, 0, 1, 1, 1 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 1, 1 },
+    { 0, 0, 0, 0, 0, 0, 1, 1 },
+    { 0, 0, 0, 0, 0, 0, 1, 1 },
+    { 1, 1, 0, 0, 0, 0, 1, 1 },
+    { 1, 1, 0, 0, 0, 0, 1, 1 },
+    { 0, 0, 0, 0, 0, 0, 1, 1 },
+    { 0, 0, 0, 0, 0, 0, 1, 1 },
+    { 0, 0, 0, 0, 0, 0, 1, 1 },
 };
 
 std::vector<RGBColor> palette = { RGBColor(0, 0, 0), RGBColor(255, 255, 255) };
@@ -309,6 +309,9 @@ void handle_match_state(uart_data_t* rx, std::vector<std::shared_ptr<Sphero>>* s
     case 0x03: // Switch to orientation
         LOG_DBG("Switching to orientation");
 
+        // Reset the sphero aim
+        sphero->reset_aim();
+
         sphero->register_matrix_animation({ frame }, palette, 10, false);
         k_msleep(500);
         sphero->play_animation(0);
@@ -332,8 +335,14 @@ void handle_match_state(uart_data_t* rx, std::vector<std::shared_ptr<Sphero>>* s
 
 void handle_color_state(uart_data_t* rx, std::vector<std::shared_ptr<Sphero>>* spheros)
 {
-    if (rx->len != 93) {
-        LOG_ERR("Recieved %d bytes, expected 48", rx->len);
+    // data[0] is always 0x8d
+    // data[1] is command byte
+    // Then we have 3 * spheros for colors
+    // Then we have 3 * spheros for velocities
+    // Then we have the end byte
+
+    if (rx->len != 3 + (6 * spheros->size())) {
+        LOG_ERR("Recieved %d bytes, expected %d", rx->len, 3 + (6 * spheros->size()));
         return;
     }
 
@@ -348,10 +357,12 @@ void handle_color_state(uart_data_t* rx, std::vector<std::shared_ptr<Sphero>>* s
         (*spheros)[i]->set_matrix_color(color);
     }
 
+    int offset = 2 + (3 * spheros->size());
+
     // Set the velocities
     for (int i = 0; i < spheros->size(); i++) {
-        uint8_t speed = rx->data[47 + (i * 3)];
-        uint16_t heading = (rx->data[47 + (i * 3) + 1] << 8) | (rx->data[47 + (i * 3) + 2]); // big-endian format
+        uint8_t speed = rx->data[offset + (i * 3)];
+        uint16_t heading = (rx->data[offset + (i * 3) + 1] << 8) | (rx->data[offset + (i * 3) + 2]); // big-endian format
         LOG_DBG("Speed is: %d, heading is: %d", speed, heading);
         (*spheros)[i]->drive(speed, heading);
     }
@@ -444,6 +455,13 @@ int main(void)
                 switch (state) {
                 case States::IDLE:
                     handle_idle_state(rx);
+
+                    if (state == States::SET_COLORS) {
+                        for (auto sphero : spheros) {
+                            sphero->set_matrix_color(RGBColor(255, 255, 255));
+                        }
+                    }
+
                     break;
                 case States::MATCH:
                     handle_match_state(rx, &spheros);
