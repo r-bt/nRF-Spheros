@@ -266,7 +266,7 @@ static void scan_connecting(struct bt_scan_device_info* device_info, struct bt_c
 
 BT_SCAN_CB_INIT(scan_cb, scan_filter_match, NULL, scan_connecting_error, scan_connecting);
 
-static int scanner_scan_init(void)
+static int scanner_scan_init(char* sphero_names[], int sphero_names_len)
 {
     int err;
     struct bt_scan_init_param scan_init = {
@@ -277,26 +277,6 @@ static int scanner_scan_init(void)
 
     bt_scan_init(&scan_init);
     bt_scan_cb_register(&scan_cb);
-
-    int sphero_names_len = 15;
-
-    char* sphero_names[] = {
-        "SB-1B35",
-        "SB-F860",
-        "SB-2175",
-        "SB-3026",
-        "SB-618E",
-        "SB-6B58",
-        "SB-9938",
-        "SB-BFD4",
-        "SB-C1D2",
-        "SB-CEFA",
-        "SB-DF1D",
-        "SB-F465",
-        "SB-F479",
-        "SB-F885",
-        "SB-FCB2"
-    };
 
     for (int i = 0; i < sphero_names_len; i++) {
         err = bt_scan_filter_add(BT_SCAN_FILTER_TYPE_NAME, sphero_names[i]);
@@ -316,7 +296,7 @@ static int scanner_scan_init(void)
     return err;
 }
 
-int scanner_init(void)
+int scanner_init(char* names[], int sphero_names_len)
 {
     int err;
 
@@ -326,7 +306,7 @@ int scanner_init(void)
         return err;
     }
 
-    err = scanner_scan_init();
+    err = scanner_scan_init(names, sphero_names_len);
 
     if (err != 0) {
         LOG_ERR("Scan module failed to initialize (err %d)", err);

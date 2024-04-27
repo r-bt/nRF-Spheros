@@ -268,14 +268,14 @@ void handle_idle_state(uart_data_t* rx)
 uint8_t matching_index = 0;
 
 std::vector<std::vector<uint8_t>> frame = {
-    { 0, 0, 0, 0, 0, 0, 1, 1 },
-    { 0, 0, 0, 0, 0, 0, 1, 1 },
-    { 0, 0, 0, 0, 0, 0, 1, 1 },
-    { 1, 1, 0, 0, 0, 0, 1, 1 },
-    { 1, 1, 0, 0, 0, 0, 1, 1 },
-    { 0, 0, 0, 0, 0, 0, 1, 1 },
-    { 0, 0, 0, 0, 0, 0, 1, 1 },
-    { 0, 0, 0, 0, 0, 0, 1, 1 },
+    { 0, 0, 0, 0, 0, 0, 0, 1 },
+    { 0, 0, 0, 0, 0, 0, 0, 1 },
+    { 0, 0, 0, 0, 0, 0, 0, 1 },
+    { 1, 0, 0, 0, 0, 0, 0, 1 },
+    { 1, 0, 0, 0, 0, 0, 0, 1 },
+    { 0, 0, 0, 0, 0, 0, 0, 1 },
+    { 0, 0, 0, 0, 0, 0, 0, 1 },
+    { 0, 0, 0, 0, 0, 0, 0, 1 },
 };
 
 std::vector<RGBColor> palette = { RGBColor(0, 0, 0), RGBColor(255, 255, 255) };
@@ -399,13 +399,77 @@ void send_response(uint8_t* data, size_t data_size)
     }
 }
 
+// Function to convert a range of uint8_t array to std::string
+std::string uint8ToString(const uint8_t* data, size_t start, size_t end)
+{
+    return std::string(reinterpret_cast<const char*>(data + start), end - start);
+}
+
 int main(void)
 {
     int err;
 
+    // Init UART
+
+    err = uart_init();
+
+    if (err) {
+        LOG_ERR("Failed to initialize UART (err %d)", err);
+        return 1;
+    }
+
+    // Get the names of the Spheros to connect to
+
+    LOG_DBG("nrfSphero started. Waiting for Sphero Names...");
+
+    std::vector<std::string> names;
+
+    for (;;) {
+        struct uart_data_t* rx = (struct uart_data_t*)k_fifo_get(&fifo_uart_rx_data, K_FOREVER);
+
+        if (!validate_uart_packet(rx)) {
+            k_free(rx);
+            continue;
+        }
+
+        if (rx->len == 3 && rx->data[1] == 0x00) {
+            // Client asking for reset, ask for Sphero names
+            k_free(rx);
+            uint8_t data[] = { 0x01 };
+            size_t data_size = sizeof(data) / sizeof(data[0]);
+            send_response(data, data_size);
+            continue;
+        }
+
+        if (rx->len == 4 && rx->data[1] == 0x01) {
+            // Finished adding Spheros
+            k_free(rx);
+            uint8_t data[] = { 0x05 };
+            size_t data_size = sizeof(data) / sizeof(data[0]);
+            send_response(data, data_size);
+            break;
+        }
+
+        // Define the range of indices you want to push
+        size_t start_index = 1; // Skip start of packet
+        size_t end_index = rx->len - 1; // Skip end of packet
+
+        std::string sphero_name = uint8ToString(rx->data, start_index, end_index);
+
+        names.push_back(sphero_name);
+
+        k_free(rx);
+
+        // Send response
+
+        uint8_t data[] = { 0xFF };
+        size_t data_size = sizeof(data) / sizeof(data[0]);
+        send_response(data, data_size);
+    }
+
     // SETUP SPHEROS
 
-    SpheroScanner scanner;
+    SpheroScanner scanner(names);
 
     err = scanner.start_scanning();
 
@@ -427,19 +491,12 @@ int main(void)
     auto spheros = scanner.get_spheros();
     LOG_INF("Found %d spheros", scanner.get_num_spheros());
 
-    // SETUP UART
+    // Ready to start, tell python
+    uint8_t data[] = { 0x10 };
+    size_t data_size = sizeof(data) / sizeof(data[0]);
+    send_response(data, data_size);
 
-    err = uart_init();
-
-    if (err) {
-        LOG_ERR("Failed to initialize UART (err %d)", err);
-        return 1;
-    }
-
-    // Run the state machine
-
-    LOG_DBG("Running state machine!");
-
+    // MAIN LOOP
     for (;;) {
         struct uart_data_t* rx = (struct uart_data_t*)k_fifo_get(&fifo_uart_rx_data, K_FOREVER);
 

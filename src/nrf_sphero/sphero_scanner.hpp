@@ -11,7 +11,7 @@ private:
     bool mInitialized = false;
 
 public:
-    SpheroScanner();
+    SpheroScanner(std::vector<std::string> names);
     ~SpheroScanner();
 
     /*

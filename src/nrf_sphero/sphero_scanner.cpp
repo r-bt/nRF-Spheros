@@ -2,13 +2,20 @@
 #include "ble/scanner.h"
 #include "sphero.hpp"
 #include <cstdint>
+#include <cstring> // Include <cstring> for strcpy
 #include <memory>
 #include <vector>
 #include <zephyr/kernel.h>
 
-SpheroScanner::SpheroScanner()
+SpheroScanner::SpheroScanner(std::vector<std::string> names)
 {
-    scanner_init();
+    char** c_names = new char*[names.size()];
+    for (size_t i = 0; i < names.size(); i++) {
+        c_names[i] = new char[names[i].size() + 1];
+        std::strcpy(c_names[i], names[i].c_str());
+    }
+
+    scanner_init(c_names, names.size());
 
     mInitialized = true;
 }

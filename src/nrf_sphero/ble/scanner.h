@@ -12,7 +12,7 @@ extern uint64_t last_sphero_found;
 /**
  * @brief Initalize bluetooth to scan for spheros
  */
-int scanner_init(void);
+int scanner_init(char* names[], int sphero_names_len);
 
 /**
  * @brief Start scanning for spheros
