@@ -271,8 +271,8 @@ std::vector<std::vector<uint8_t>> frame = {
     { 0, 0, 0, 0, 0, 0, 0, 1 },
     { 0, 0, 0, 0, 0, 0, 0, 1 },
     { 0, 0, 0, 0, 0, 0, 0, 1 },
-    { 1, 0, 0, 0, 0, 0, 0, 1 },
-    { 1, 0, 0, 0, 0, 0, 0, 1 },
+    { 0, 0, 0, 0, 0, 0, 0, 1 },
+    { 0, 0, 0, 0, 0, 0, 0, 1 },
     { 0, 0, 0, 0, 0, 0, 0, 1 },
     { 0, 0, 0, 0, 0, 0, 0, 1 },
     { 0, 0, 0, 0, 0, 0, 0, 1 },
@@ -300,21 +300,23 @@ void handle_match_state(uart_data_t* rx, std::vector<std::shared_ptr<Sphero>>* s
     case 0x01: // Increment matching index
         LOG_DBG("incrementing matching index");
         matching_index++;
-        sphero->clear_matrix();
+
+        sphero->set_all_leds_with_map({ { Sphero::LEDs::FRONT_BLUE, 0 }, { Sphero::LEDs::BACK_BLUE, 0 } });
+
         break;
-    case 0x02: // Set matrix to all white
-        LOG_DBG("Setting matrix to all white");
-        sphero->set_matrix_color(RGBColor(255, 255, 255));
-        break;
-    case 0x03: // Switch to orientation
-        LOG_DBG("Switching to orientation");
+    case 0x02: // Switch to orientation (front-light)
+        LOG_DBG("Switching to front-light orientation");
 
         // Reset the sphero aim
         sphero->reset_aim();
 
-        sphero->register_matrix_animation({ frame }, palette, 10, false);
-        k_msleep(500);
-        sphero->play_animation(0);
+        sphero->set_all_leds_with_map({ { Sphero::LEDs::FRONT_BLUE, 255 } });
+
+        break;
+    case 0x03: // Turn on back-light for orientation
+        LOG_DBG("Switching to back-light orientation");
+
+        sphero->set_all_leds_with_map({ { Sphero::LEDs::FRONT_BLUE, 0 }, { Sphero::LEDs::BACK_BLUE, 255 } });
 
         break;
     case 0x04: // Handle changing heading and resetting aim
@@ -376,6 +378,7 @@ void reset(std::vector<std::shared_ptr<Sphero>>* spheros)
     for (auto sphero : *spheros) {
         sphero->clear_matrix();
         sphero->set_matrix_color(RGBColor(0, 0, 0));
+        sphero->set_all_leds_with_map({ { Sphero::LEDs::FRONT_BLUE, 0 }, { Sphero::LEDs::BACK_BLUE, 0 } });
     }
 
     matching_index = 0;
